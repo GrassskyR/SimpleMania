@@ -252,8 +252,11 @@ int main(int argc, char* argv[]) {
             state = AppState::Ready;
         }
     }
+    const int targetFps = 120;
+    const int targetFrameMs = 1000 / targetFps;
     bool running = true;
     while (running) {
+        Uint32 frameStart = SDL_GetTicks();
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
@@ -363,7 +366,10 @@ int main(int argc, char* argv[]) {
         }
         SDL_SetWindowTitle(window, title);
 
-        SDL_Delay(16);
+        Uint32 frameElapsed = SDL_GetTicks() - frameStart;
+        if (frameElapsed < static_cast<Uint32>(targetFrameMs)) {
+            SDL_Delay(targetFrameMs - frameElapsed);
+        }
     }
 
 #ifdef USE_SDL_MIXER
