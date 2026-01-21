@@ -112,6 +112,9 @@ int main(int argc, char* argv[]) {
     // 主入口：初始化SDL、加载菜单与游戏循环
     std::string osuPath = argc > 1 ? argv[1] : "";
 
+    SDL_SetHint(SDL_HINT_TIMER_RESOLUTION, "1");
+    SDL_SetHint(SDL_HINT_AUDIO_RESAMPLING_MODE, "linear");
+
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) {
         std::printf("SDL init failed: %s\n", SDL_GetError());
         return 1;
@@ -152,8 +155,18 @@ int main(int argc, char* argv[]) {
 #ifdef USE_SDL_MIXER
     Mix_Music* music = nullptr;
     Mix_Init(MIX_INIT_MP3 | MIX_INIT_OGG);
-    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096) != 0) {
-        std::printf("Mix_OpenAudio failed: %s\n", Mix_GetError());
+    int mixFrequency = 48000;
+    SDL_AudioSpec deviceSpec{};
+    if (SDL_GetNumAudioDevices(0) > 0 && SDL_GetAudioDeviceSpec(0, 0, &deviceSpec) == 0) {
+        if (deviceSpec.freq > 0) {
+            mixFrequency = deviceSpec.freq;
+        }
+    }
+    if (Mix_OpenAudioDevice(mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096, nullptr, 0) != 0) {
+        if (Mix_OpenAudioDevice(mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096, nullptr,
+                                SDL_AUDIO_ALLOW_ANY_CHANGE) != 0) {
+            std::printf("Mix_OpenAudio failed: %s\n", Mix_GetError());
+        }
     }
 #else
     SDL_AudioDeviceID audioDevice = 0;
