@@ -299,36 +299,6 @@ int main(int argc, char* argv[]) {
                 } else if (code == SDL_SCANCODE_F5) {
                     resolutionIndex = (resolutionIndex + 1) % static_cast<int>(resolutions.size());
                     applyResolution();
-                } else if (state == AppState::Menu) {
-                    if (chartEntries.empty()) {
-                        continue;
-                    }
-                    if (code == SDL_SCANCODE_UP) {
-                        selectedIndex = std::max(0, selectedIndex - 1);
-                    } else if (code == SDL_SCANCODE_DOWN) {
-                        selectedIndex = std::min(static_cast<int>(chartEntries.size()) - 1,
-                                                 selectedIndex + 1);
-                    } else if (code == SDL_SCANCODE_RETURN || code == SDL_SCANCODE_SPACE) {
-                        if (loadChart(chartEntries[selectedIndex].path)) {
-                            state = AppState::Ready;
-                            started = false;
-                        }
-                    }
-                } else if (state == AppState::Ready && (code == SDL_SCANCODE_SPACE || code == SDL_SCANCODE_RETURN)) {
-                    started = true;
-                    startTime = SDL_GetTicks();
-                    state = AppState::Playing;
-#ifdef USE_SDL_MIXER
-                    if (music) {
-                        Mix_PlayMusic(music, 0);
-                    }
-#else
-                    if (audioDevice != 0 && wavBuffer) {
-                        SDL_ClearQueuedAudio(audioDevice);
-                        SDL_QueueAudio(audioDevice, wavBuffer, wavLength);
-                        SDL_PauseAudioDevice(audioDevice, 0);
-                    }
-#endif
                 }
             }
         }
@@ -343,6 +313,41 @@ int main(int argc, char* argv[]) {
             } else if ((keys[SDL_SCANCODE_MINUS] && !prevKeys[SDL_SCANCODE_MINUS]) ||
                        (keys[SDL_SCANCODE_KP_MINUS] && !prevKeys[SDL_SCANCODE_KP_MINUS])) {
                 scrollSpeed = std::max(0.1f, scrollSpeed - 0.1f);
+            }
+        }
+
+        if (state == AppState::Menu && !chartEntries.empty()) {
+            if (keys[SDL_SCANCODE_UP] && !prevKeys[SDL_SCANCODE_UP]) {
+                selectedIndex = std::max(0, selectedIndex - 1);
+            } else if (keys[SDL_SCANCODE_DOWN] && !prevKeys[SDL_SCANCODE_DOWN]) {
+                selectedIndex = std::min(static_cast<int>(chartEntries.size()) - 1,
+                                         selectedIndex + 1);
+            } else if ((keys[SDL_SCANCODE_RETURN] && !prevKeys[SDL_SCANCODE_RETURN]) ||
+                       (keys[SDL_SCANCODE_SPACE] && !prevKeys[SDL_SCANCODE_SPACE])) {
+                if (loadChart(chartEntries[selectedIndex].path)) {
+                    state = AppState::Ready;
+                    started = false;
+                }
+            }
+        }
+
+        if (state == AppState::Ready) {
+            if ((keys[SDL_SCANCODE_RETURN] && !prevKeys[SDL_SCANCODE_RETURN]) ||
+                (keys[SDL_SCANCODE_SPACE] && !prevKeys[SDL_SCANCODE_SPACE])) {
+                started = true;
+                startTime = SDL_GetTicks();
+                state = AppState::Playing;
+#ifdef USE_SDL_MIXER
+                if (music) {
+                    Mix_PlayMusic(music, 0);
+                }
+#else
+                if (audioDevice != 0 && wavBuffer) {
+                    SDL_ClearQueuedAudio(audioDevice);
+                    SDL_QueueAudio(audioDevice, wavBuffer, wavLength);
+                    SDL_PauseAudioDevice(audioDevice, 0);
+                }
+#endif
             }
         }
 
