@@ -10,6 +10,12 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#define NOMINMAX
+#include <mmsystem.h>
+#include <windows.h>
+#endif
+
 #include "Game.h"
 #include "OsuParser.h"
 #include "Renderer.h"
@@ -137,6 +143,22 @@ std::vector<ChartEntry> ScanCharts(const std::string& rootPath) {
     });
     return entries;
 }
+
+#ifdef _WIN32
+bool EnableHighResolutionTimer() {
+    return timeBeginPeriod(1) == TIMERR_NOERROR;
+}
+
+void DisableHighResolutionTimer() {
+    timeEndPeriod(1);
+}
+#else
+bool EnableHighResolutionTimer() {
+    return false;
+}
+
+void DisableHighResolutionTimer() {}
+#endif
 }
 
 int main(int argc, char* argv[]) {
@@ -144,6 +166,8 @@ int main(int argc, char* argv[]) {
     std::string osuPath = argc > 1 ? argv[1] : "";
     const char* audioDebugEnv = std::getenv("SM_AUDIO_DEBUG");
     bool audioDebug = audioDebugEnv && std::string(audioDebugEnv) == "1";
+
+    bool highResTimer = EnableHighResolutionTimer();
 
     SDL_SetHint(SDL_HINT_TIMER_RESOLUTION, "1");
     SDL_SetHint(SDL_HINT_AUDIO_RESAMPLING_MODE, "linear");
@@ -163,6 +187,7 @@ int main(int argc, char* argv[]) {
     if (audioDebug) {
         std::printf("SDL audio driver: %s\n", SDL_GetCurrentAudioDriver());
         std::printf("Performance frequency: %lld\n", static_cast<long long>(SDL_GetPerformanceFrequency()));
+        std::printf("High resolution timer: %s\n", highResTimer ? "on" : "off");
         LogAudioDevices();
     }
 
@@ -630,6 +655,11 @@ int main(int argc, char* argv[]) {
 #endif
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
+#ifdef _WIN32
+    if (highResTimer) {
+        DisableHighResolutionTimer();
+    }
+#endif
     SDL_Quit();
     return 0;
 }
