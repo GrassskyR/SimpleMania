@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -52,17 +53,46 @@ std::vector<SDL_Scancode> BuildKeyMap(int keyCount) {
 SDL_Rect GetPlayButtonRect(const RenderConfig& config) {
     return SDL_Rect{config.width / 2 - 90, config.height / 2 - 30, 180, 60};
 }
+
+struct ChartEntry {
+    std::string label;
+    std::string path;
+};
+
+std::vector<ChartEntry> ScanCharts(const std::string& rootPath) {
+    std::vector<ChartEntry> entries;
+    std::error_code error;
+    if (!std::filesystem::exists(rootPath, error)) {
+        return entries;
+    }
+
+    for (const auto& dirEntry : std::filesystem::directory_iterator(rootPath)) {
+        if (!dirEntry.is_directory()) {
+            continue;
+        }
+        std::string folder = dirEntry.path().filename().string();
+        for (const auto& fileEntry : std::filesystem::directory_iterator(dirEntry.path())) {
+            if (!fileEntry.is_regular_file()) {
+                continue;
+            }
+            if (fileEntry.path().extension() == ".osu") {
+                ChartEntry entry;
+                entry.label = folder + " / " + fileEntry.path().stem().string();
+                entry.path = fileEntry.path().string();
+                entries.push_back(entry);
+            }
+        }
+    }
+
+    std::sort(entries.begin(), entries.end(), [](const ChartEntry& a, const ChartEntry& b) {
+        return a.label < b.label;
+    });
+    return entries;
+}
 }
 
 int main(int argc, char* argv[]) {
-    std::string osuPath = argc > 1 ? argv[1] : "assets/demo.osu";
-
-    Chart chart;
-    std::string error;
-    if (!ParseOsuFile(osuPath, chart, error)) {
-        std::printf("Failed to load chart: %s\n", error.c_str());
-        return 1;
-    }
+    std::string osuPath = argc > 1 ? argv[1] : "";
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) {
         std::printf("SDL init failed: %s\n", SDL_GetError());
@@ -87,47 +117,98 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::string audioPath;
-    if (!chart.audioFilename.empty()) {
-        audioPath = GetDirectory(osuPath) + chart.audioFilename;
-    }
-
 #ifdef USE_SDL_MIXER
     Mix_Music* music = nullptr;
-    if (!audioPath.empty()) {
-        Mix_Init(MIX_INIT_MP3 | MIX_INIT_OGG);
-        if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) == 0) {
-            music = Mix_LoadMUS(audioPath.c_str());
-            if (!music) {
-                std::printf("Failed to load music: %s\n", Mix_GetError());
-            }
-        } else {
-            std::printf("Mix_OpenAudio failed: %s\n", Mix_GetError());
-        }
+    Mix_Init(MIX_INIT_MP3 | MIX_INIT_OGG);
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) != 0) {
+        std::printf("Mix_OpenAudio failed: %s\n", Mix_GetError());
     }
 #else
     SDL_AudioDeviceID audioDevice = 0;
     SDL_AudioSpec wavSpec{};
     Uint8* wavBuffer = nullptr;
     Uint32 wavLength = 0;
-    if (!audioPath.empty()) {
-        if (SDL_LoadWAV(audioPath.c_str(), &wavSpec, &wavBuffer, &wavLength)) {
-            audioDevice = SDL_OpenAudioDevice(nullptr, 0, &wavSpec, nullptr, 0);
-        } else {
-            std::printf("Audio load failed (WAV only in this build): %s\n", SDL_GetError());
-        }
-    }
 #endif
 
+    enum class AppState {
+        Menu,
+        Ready,
+        Playing
+    };
+
+    std::vector<ChartEntry> chartEntries = ScanCharts("assets");
+    int selectedIndex = 0;
+    Chart chart;
     Game game;
-    game.LoadChart(chart);
-
-    std::vector<SDL_Scancode> keyMap = BuildKeyMap(game.GetKeyCount());
+    std::vector<SDL_Scancode> keyMap;
     float scrollSpeed = 0.5f;
-
     Uint32 startTime = 0;
     bool started = false;
     SDL_Rect playButton = GetPlayButtonRect(renderConfig);
+    AppState state = AppState::Menu;
+
+    auto unloadAudio = [&]() {
+#ifdef USE_SDL_MIXER
+        if (music) {
+            Mix_HaltMusic();
+            Mix_FreeMusic(music);
+            music = nullptr;
+        }
+#else
+        if (audioDevice != 0) {
+            SDL_CloseAudioDevice(audioDevice);
+            audioDevice = 0;
+        }
+        if (wavBuffer) {
+            SDL_FreeWAV(wavBuffer);
+            wavBuffer = nullptr;
+            wavLength = 0;
+        }
+#endif
+    };
+
+    auto loadChart = [&](const std::string& path) -> bool {
+        Chart nextChart;
+        std::string error;
+        if (!ParseOsuFile(path, nextChart, error)) {
+            std::printf("Failed to load chart: %s\n", error.c_str());
+            return false;
+        }
+
+        unloadAudio();
+        std::string audioPath;
+        if (!nextChart.audioFilename.empty()) {
+            audioPath = GetDirectory(path) + nextChart.audioFilename;
+        }
+
+#ifdef USE_SDL_MIXER
+        if (!audioPath.empty()) {
+            music = Mix_LoadMUS(audioPath.c_str());
+            if (!music) {
+                std::printf("Failed to load music: %s\n", Mix_GetError());
+            }
+        }
+#else
+        if (!audioPath.empty()) {
+            if (SDL_LoadWAV(audioPath.c_str(), &wavSpec, &wavBuffer, &wavLength)) {
+                audioDevice = SDL_OpenAudioDevice(nullptr, 0, &wavSpec, nullptr, 0);
+            } else {
+                std::printf("Audio load failed (WAV only in this build): %s\n", SDL_GetError());
+            }
+        }
+#endif
+
+        chart = nextChart;
+        game.LoadChart(chart);
+        keyMap = BuildKeyMap(game.GetKeyCount());
+        return true;
+    };
+
+    if (!osuPath.empty()) {
+        if (loadChart(osuPath)) {
+            state = AppState::Ready;
+        }
+    }
     bool running = true;
     while (running) {
         SDL_Event event;
@@ -135,11 +216,12 @@ int main(int argc, char* argv[]) {
             if (event.type == SDL_QUIT) {
                 running = false;
             } else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
-                if (!started) {
+                if (state == AppState::Ready && !started) {
                     SDL_Point point{event.button.x, event.button.y};
                     if (SDL_PointInRect(&point, &playButton)) {
                         started = true;
                         startTime = SDL_GetTicks();
+                        state = AppState::Playing;
 #ifdef USE_SDL_MIXER
                         if (music) {
                             Mix_PlayMusic(music, 0);
@@ -157,9 +239,25 @@ int main(int argc, char* argv[]) {
                 SDL_Scancode code = event.key.keysym.scancode;
                 if (code == SDL_SCANCODE_ESCAPE) {
                     running = false;
-                } else if (!started && (code == SDL_SCANCODE_SPACE || code == SDL_SCANCODE_RETURN)) {
+                } else if (state == AppState::Menu) {
+                    if (chartEntries.empty()) {
+                        continue;
+                    }
+                    if (code == SDL_SCANCODE_UP) {
+                        selectedIndex = std::max(0, selectedIndex - 1);
+                    } else if (code == SDL_SCANCODE_DOWN) {
+                        selectedIndex = std::min(static_cast<int>(chartEntries.size()) - 1,
+                                                 selectedIndex + 1);
+                    } else if (code == SDL_SCANCODE_RETURN || code == SDL_SCANCODE_SPACE) {
+                        if (loadChart(chartEntries[selectedIndex].path)) {
+                            state = AppState::Ready;
+                            started = false;
+                        }
+                    }
+                } else if (state == AppState::Ready && (code == SDL_SCANCODE_SPACE || code == SDL_SCANCODE_RETURN)) {
                     started = true;
                     startTime = SDL_GetTicks();
+                    state = AppState::Playing;
 #ifdef USE_SDL_MIXER
                     if (music) {
                         Mix_PlayMusic(music, 0);
@@ -175,7 +273,7 @@ int main(int argc, char* argv[]) {
                     scrollSpeed = std::min(2.5f, scrollSpeed + 0.05f);
                 } else if (code == SDL_SCANCODE_DOWN) {
                     scrollSpeed = std::max(0.1f, scrollSpeed - 0.05f);
-                } else if (started) {
+                } else if (state == AppState::Playing) {
                     for (int lane = 0; lane < static_cast<int>(keyMap.size()); ++lane) {
                         if (keyMap[lane] == code) {
                             int nowMs = static_cast<int>(SDL_GetTicks() - startTime);
@@ -188,15 +286,26 @@ int main(int argc, char* argv[]) {
         }
 
         int nowMs = 0;
-        if (started) {
+        if (state == AppState::Playing) {
             nowMs = static_cast<int>(SDL_GetTicks() - startTime);
             game.Update(nowMs);
+            RenderFrame(renderer, game, nowMs, scrollSpeed, renderConfig, false);
+        } else if (state == AppState::Ready) {
+            RenderFrame(renderer, game, nowMs, scrollSpeed, renderConfig, true);
+        } else {
+            std::vector<std::string> labels;
+            labels.reserve(chartEntries.size());
+            for (const auto& entry : chartEntries) {
+                labels.push_back(entry.label);
+            }
+            RenderMenu(renderer, renderConfig, labels, selectedIndex);
         }
-        RenderFrame(renderer, game, nowMs, scrollSpeed, renderConfig, !started);
 
         const GameStats& stats = game.GetStats();
         char title[256];
-        if (!started) {
+        if (state == AppState::Menu) {
+            std::snprintf(title, sizeof(title), "SimpleMania | Select Beatmap");
+        } else if (state == AppState::Ready) {
             std::snprintf(title, sizeof(title), "SimpleMania | Click Play or Press Space");
         } else {
             std::snprintf(title, sizeof(title), "SimpleMania | Score %d | Combo %d | Speed %.2f",

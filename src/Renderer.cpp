@@ -220,3 +220,28 @@ void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scro
 
     SDL_RenderPresent(renderer);
 }
+
+void RenderMenu(SDL_Renderer* renderer, const RenderConfig& config,
+                const std::vector<std::string>& items, int selectedIndex) {
+    SDL_SetRenderDrawColor(renderer, 14, 14, 20, 255);
+    SDL_RenderClear(renderer);
+
+    SDL_Color titleColor{235, 225, 210, 255};
+    DrawText(renderer, 24, 24, 3, titleColor, "SELECT BEATMAP");
+
+    if (items.empty()) {
+        SDL_Color warnColor{220, 120, 120, 255};
+        DrawText(renderer, 24, 80, 2, warnColor, "NO OSU FILES FOUND");
+        SDL_RenderPresent(renderer);
+        return;
+    }
+
+    int startY = 90;
+    for (int i = 0; i < static_cast<int>(items.size()); ++i) {
+        SDL_Color color = (i == selectedIndex) ? SDL_Color{240, 200, 80, 255}
+                                                : SDL_Color{220, 220, 220, 255};
+        DrawText(renderer, 40, startY + i * 26, 2, color, items[i]);
+    }
+
+    SDL_RenderPresent(renderer);
+}
