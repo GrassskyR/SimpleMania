@@ -115,9 +115,17 @@ int main(int argc, char* argv[]) {
     SDL_SetHint(SDL_HINT_TIMER_RESOLUTION, "1");
     SDL_SetHint(SDL_HINT_AUDIO_RESAMPLING_MODE, "linear");
 
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
         std::printf("SDL init failed: %s\n", SDL_GetError());
         return 1;
+    }
+
+    if (SDL_AudioInit("wasapi") != 0) {
+        if (SDL_AudioInit(nullptr) != 0) {
+            std::printf("SDL audio init failed: %s\n", SDL_GetError());
+            SDL_Quit();
+            return 1;
+        }
     }
 
     RenderConfig renderConfig;
@@ -156,17 +164,23 @@ int main(int argc, char* argv[]) {
     Mix_Music* music = nullptr;
     Mix_Init(MIX_INIT_MP3 | MIX_INIT_OGG);
     int mixFrequency = 48000;
-    SDL_AudioSpec deviceSpec{};
-    if (SDL_GetNumAudioDevices(0) > 0 && SDL_GetAudioDeviceSpec(0, 0, &deviceSpec) == 0) {
-        if (deviceSpec.freq > 0) {
-            mixFrequency = deviceSpec.freq;
+    SDL_AudioSpec probeDesired{};
+    SDL_AudioSpec probeObtained{};
+    probeDesired.freq = mixFrequency;
+    probeDesired.format = MIX_DEFAULT_FORMAT;
+    probeDesired.channels = 2;
+    probeDesired.samples = 4096;
+    SDL_AudioDeviceID probeDevice = SDL_OpenAudioDevice(nullptr, 0, &probeDesired, &probeObtained,
+                                                        SDL_AUDIO_ALLOW_ANY_CHANGE);
+    if (probeDevice != 0) {
+        if (probeObtained.freq > 0) {
+            mixFrequency = probeObtained.freq;
         }
+        SDL_CloseAudioDevice(probeDevice);
     }
-    if (Mix_OpenAudioDevice(mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096, nullptr, 0) != 0) {
-        if (Mix_OpenAudioDevice(mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096, nullptr,
-                                SDL_AUDIO_ALLOW_ANY_CHANGE) != 0) {
+    if (Mix_OpenAudioDevice(mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096, nullptr,
+                            SDL_AUDIO_ALLOW_ANY_CHANGE) != 0) {
             std::printf("Mix_OpenAudio failed: %s\n", Mix_GetError());
-        }
     }
 #else
     SDL_AudioDeviceID audioDevice = 0;
