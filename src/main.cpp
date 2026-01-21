@@ -260,6 +260,7 @@ int main(int argc, char* argv[]) {
     }
     const int targetFps = 165;
     const int targetFrameMs = 1000 / targetFps;
+    std::vector<Uint8> prevKeys(SDL_NUM_SCANCODES, 0);
     bool running = true;
     while (running) {
         Uint32 frameStart = SDL_GetTicks();
@@ -328,20 +329,29 @@ int main(int argc, char* argv[]) {
                         SDL_PauseAudioDevice(audioDevice, 0);
                     }
 #endif
-                } else if (state != AppState::Menu && (event.key.keysym.mod & KMOD_CTRL) != 0) {
-                    if (code == SDL_SCANCODE_EQUALS || code == SDL_SCANCODE_KP_PLUS) {
-                        scrollSpeed = std::min(3.0f, scrollSpeed + 0.1f);
-                    } else if (code == SDL_SCANCODE_MINUS || code == SDL_SCANCODE_KP_MINUS) {
-                        scrollSpeed = std::max(0.1f, scrollSpeed - 0.1f);
-                    }
-                } else if (state == AppState::Playing) {
-                    for (int lane = 0; lane < static_cast<int>(keyMap.size()); ++lane) {
-                        if (keyMap[lane] == code) {
-                            int nowMs = static_cast<int>(SDL_GetTicks() - startTime);
-                            game.HandleInput(lane, nowMs);
-                            break;
-                        }
-                    }
+                }
+            }
+        }
+
+        const Uint8* keys = SDL_GetKeyboardState(nullptr);
+        Uint16 mods = SDL_GetModState();
+        bool ctrlDown = (mods & KMOD_CTRL) != 0;
+        if (state != AppState::Menu && ctrlDown) {
+            if ((keys[SDL_SCANCODE_EQUALS] && !prevKeys[SDL_SCANCODE_EQUALS]) ||
+                (keys[SDL_SCANCODE_KP_PLUS] && !prevKeys[SDL_SCANCODE_KP_PLUS])) {
+                scrollSpeed = std::min(3.0f, scrollSpeed + 0.1f);
+            } else if ((keys[SDL_SCANCODE_MINUS] && !prevKeys[SDL_SCANCODE_MINUS]) ||
+                       (keys[SDL_SCANCODE_KP_MINUS] && !prevKeys[SDL_SCANCODE_KP_MINUS])) {
+                scrollSpeed = std::max(0.1f, scrollSpeed - 0.1f);
+            }
+        }
+
+        if (state == AppState::Playing) {
+            for (int lane = 0; lane < static_cast<int>(keyMap.size()); ++lane) {
+                SDL_Scancode scancode = keyMap[lane];
+                if (scancode != SDL_SCANCODE_UNKNOWN && keys[scancode] && !prevKeys[scancode]) {
+                    int nowMs = static_cast<int>(SDL_GetTicks() - startTime);
+                    game.HandleInput(lane, nowMs);
                 }
             }
         }
@@ -378,6 +388,8 @@ int main(int argc, char* argv[]) {
         if (frameElapsed < static_cast<Uint32>(targetFrameMs)) {
             SDL_Delay(targetFrameMs - frameElapsed);
         }
+
+        std::copy(keys, keys + SDL_NUM_SCANCODES, prevKeys.begin());
     }
 
 #ifdef USE_SDL_MIXER
