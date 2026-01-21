@@ -228,8 +228,8 @@ void RenderMenu(SDL_Renderer* renderer, const RenderConfig& config,
     DrawText(renderer, 24, 24, 3, titleColor, "SELECT BEATMAP");
 
     SDL_Color hintColor{180, 180, 180, 255};
-    DrawText(renderer, 24, 60, 2, hintColor, "UP/DOWN: SELECT  ENTER: PLAY");
-    DrawText(renderer, 24, 82, 2, hintColor, "CTRL +/-: SPEED  F5: RESOLUTION  ESC: QUIT");
+    DrawText(renderer, 24, 60, 2, hintColor, "UP DOWN: SELECT  ENTER: PLAY");
+    DrawText(renderer, 24, 82, 2, hintColor, "CTRL PLUS MINUS: SPEED  F5: RESOLUTION  ESC: QUIT");
 
     if (items.empty()) {
         SDL_Color warnColor{220, 120, 120, 255};
