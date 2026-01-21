@@ -54,6 +54,24 @@ SDL_Rect GetPlayButtonRect(const RenderConfig& config) {
     return SDL_Rect{config.windowWidth / 2 - 90, config.windowHeight / 2 - 30, 180, 60};
 }
 
+void LogAudioSpec(const char* label, const SDL_AudioSpec& spec) {
+    std::printf("%s freq=%d format=0x%04x channels=%u samples=%u\n",
+                label, spec.freq, spec.format, spec.channels, spec.samples);
+}
+
+void LogAudioDevices() {
+    int deviceCount = SDL_GetNumAudioDevices(0);
+    std::printf("Audio output devices: %d\n", deviceCount);
+    for (int i = 0; i < deviceCount; ++i) {
+        const char* name = SDL_GetAudioDeviceName(i, 0);
+        std::printf("  [%d] %s\n", i, name ? name : "(null)");
+        SDL_AudioSpec spec{};
+        if (SDL_GetAudioDeviceSpec(i, 0, &spec) == 0) {
+            LogAudioSpec("    spec", spec);
+        }
+    }
+}
+
 struct ChartEntry {
     std::string label;
     std::string path;
@@ -127,6 +145,8 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     }
+    std::printf("SDL audio driver: %s\n", SDL_GetCurrentAudioDriver());
+    LogAudioDevices();
 
     RenderConfig renderConfig;
     std::vector<ResolutionOption> resolutions = {
@@ -176,11 +196,24 @@ int main(int argc, char* argv[]) {
         if (probeObtained.freq > 0) {
             mixFrequency = probeObtained.freq;
         }
+        LogAudioSpec("Probe obtained", probeObtained);
         SDL_CloseAudioDevice(probeDevice);
     }
+    std::printf("SDL_mixer request: freq=%d format=0x%04x channels=%d samples=%d\n",
+                mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096);
     if (Mix_OpenAudioDevice(mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096, nullptr,
                             SDL_AUDIO_ALLOW_ANY_CHANGE) != 0) {
             std::printf("Mix_OpenAudio failed: %s\n", Mix_GetError());
+    } else {
+        int actualFreq = 0;
+        int actualChannels = 0;
+        Uint16 actualFormat = 0;
+        if (Mix_QuerySpec(&actualFreq, &actualFormat, &actualChannels) != 0) {
+            std::printf("SDL_mixer actual: freq=%d format=0x%04x channels=%d\n",
+                        actualFreq, actualFormat, actualChannels);
+        } else {
+            std::printf("Mix_QuerySpec failed: %s\n", Mix_GetError());
+        }
     }
 #else
     SDL_AudioDeviceID audioDevice = 0;
