@@ -14,8 +14,14 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <mmsystem.h>
-#include <windows.h>
+#ifndef WINAPI
+#define WINAPI __stdcall
+#endif
+extern "C" {
+__declspec(dllimport) unsigned int WINAPI timeBeginPeriod(unsigned int uPeriod);
+__declspec(dllimport) unsigned int WINAPI timeEndPeriod(unsigned int uPeriod);
+}
+static constexpr unsigned int kTimeOk = 0;
 #endif
 
 #include "Game.h"
@@ -63,6 +69,11 @@ SDL_Rect GetPlayButtonRect(const RenderConfig& config) {
     return SDL_Rect{config.windowWidth / 2 - 90, config.windowHeight / 2 - 30, 180, 60};
 }
 
+double GetNowMs() {
+    return static_cast<double>(SDL_GetPerformanceCounter()) * 1000.0 /
+           static_cast<double>(SDL_GetPerformanceFrequency());
+}
+
 void LogAudioSpec(const char* label, const SDL_AudioSpec& spec) {
     std::printf("%s freq=%d format=0x%04x channels=%u samples=%u\n",
                 label, spec.freq, spec.format, spec.channels, spec.samples);
@@ -79,6 +90,62 @@ void LogAudioDevices() {
             LogAudioSpec("    spec", spec);
         }
     }
+}
+
+std::string SelectAudioDevice(bool audioDebug) {
+    const char* deviceEnv = std::getenv("SM_AUDIO_DEVICE");
+    if (deviceEnv && deviceEnv[0] != '\0') {
+        std::string token = deviceEnv;
+        int index = -1;
+        try {
+            index = std::stoi(token);
+        } catch (...) {
+            index = -1;
+        }
+        int deviceCount = SDL_GetNumAudioDevices(0);
+        if (index >= 0 && index < deviceCount) {
+            const char* name = SDL_GetAudioDeviceName(index, 0);
+            if (audioDebug) {
+                std::printf("Selected audio device by index: %d (%s)\n", index, name ? name : "(null)");
+            }
+            return name ? name : std::string();
+        }
+        for (int i = 0; i < deviceCount; ++i) {
+            const char* name = SDL_GetAudioDeviceName(i, 0);
+            if (!name) {
+                continue;
+            }
+            std::string current = name;
+            if (current.find(token) != std::string::npos) {
+                if (audioDebug) {
+                    std::printf("Selected audio device by name: %s\n", name);
+                }
+                return current;
+            }
+        }
+    }
+
+    int deviceCount = SDL_GetNumAudioDevices(0);
+    std::string fallback;
+    for (int i = 0; i < deviceCount; ++i) {
+        const char* name = SDL_GetAudioDeviceName(i, 0);
+        if (!name) {
+            continue;
+        }
+        if (fallback.empty()) {
+            fallback = name;
+        }
+        SDL_AudioSpec spec{};
+        if (SDL_GetAudioDeviceSpec(i, 0, &spec) == 0) {
+            if (spec.format != 0 && spec.freq >= 44100) {
+                if (audioDebug) {
+                    std::printf("Auto-selected audio device: %s\n", name);
+                }
+                return name;
+            }
+        }
+    }
+    return std::string();
 }
 
 #ifdef USE_SDL_MIXER
@@ -148,7 +215,7 @@ std::vector<ChartEntry> ScanCharts(const std::string& rootPath) {
 
 #ifdef _WIN32
 bool EnableHighResolutionTimer() {
-    return timeBeginPeriod(1) == TIMERR_NOERROR;
+    return timeBeginPeriod(1) == kTimeOk;
 }
 
 void DisableHighResolutionTimer() {
@@ -186,11 +253,14 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     }
+    std::string preferredDevice = SelectAudioDevice(audioDebug);
+    const char* preferredDeviceName = preferredDevice.empty() ? nullptr : preferredDevice.c_str();
     if (audioDebug) {
         std::printf("SDL audio driver: %s\n", SDL_GetCurrentAudioDriver());
         std::printf("Performance frequency: %lld\n", static_cast<long long>(SDL_GetPerformanceFrequency()));
         std::printf("High resolution timer: %s\n", highResTimer ? "on" : "off");
         LogAudioDevices();
+        std::printf("Using audio device: %s\n", preferredDeviceName ? preferredDeviceName : "(default)");
     }
 
     RenderConfig renderConfig;
@@ -235,7 +305,7 @@ int main(int argc, char* argv[]) {
     probeDesired.format = MIX_DEFAULT_FORMAT;
     probeDesired.channels = 2;
     probeDesired.samples = 4096;
-    SDL_AudioDeviceID probeDevice = SDL_OpenAudioDevice(nullptr, 0, &probeDesired, &probeObtained,
+    SDL_AudioDeviceID probeDevice = SDL_OpenAudioDevice(preferredDeviceName, 0, &probeDesired, &probeObtained,
                                                         SDL_AUDIO_ALLOW_ANY_CHANGE);
     if (probeDevice != 0) {
         if (probeObtained.freq > 0) {
@@ -250,7 +320,7 @@ int main(int argc, char* argv[]) {
         std::printf("SDL_mixer request: freq=%d format=0x%04x channels=%d samples=%d\n",
                     mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096);
     }
-    if (Mix_OpenAudioDevice(mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096, nullptr,
+    if (Mix_OpenAudioDevice(mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096, preferredDeviceName,
                             SDL_AUDIO_ALLOW_ANY_CHANGE) != 0) {
             std::printf("Mix_OpenAudio failed: %s\n", Mix_GetError());
     } else {
@@ -288,17 +358,17 @@ int main(int argc, char* argv[]) {
     Game game;
     std::vector<SDL_Scancode> keyMap;
     float scrollSpeed = 1.0f;
-    Uint32 startTicks = 0;
-    Uint32 pauseStartTicks = 0;
-    Uint32 countdownStartTicks = 0;
-    int timeOffsetMs = 0;
-    int pausedGameTimeMs = 0;
+    double startTimeMs = 0.0;
+    double pauseStartMs = 0.0;
+    double countdownStartMs = 0.0;
+    double timeOffsetMs = 0.0;
+    double pausedGameTimeMs = 0.0;
     bool countdownFromPause = false;
     SDL_Rect playButton = GetPlayButtonRect(renderConfig);
     AppState state = AppState::Menu;
     int pauseMenuIndex = 0;
     const int countdownDurationMs = 3000;
-    Uint32 lastAudioLogTicks = SDL_GetTicks();
+    double lastAudioLogMs = GetNowMs();
 
     // 释放当前音频资源
     auto unloadAudio = [&]() {
@@ -366,9 +436,9 @@ int main(int argc, char* argv[]) {
     // 返回菜单并重置状态
     auto returnToMenu = [&]() {
         unloadAudio();
-        startTicks = 0;
-        pauseStartTicks = 0;
-        countdownStartTicks = 0;
+        startTimeMs = 0.0;
+        pauseStartMs = 0.0;
+        countdownStartMs = 0.0;
         timeOffsetMs = 0;
         pausedGameTimeMs = 0;
         countdownFromPause = false;
@@ -378,13 +448,13 @@ int main(int argc, char* argv[]) {
 
     auto startCountdown = [&](bool fromPause) {
         countdownFromPause = fromPause;
-        countdownStartTicks = SDL_GetTicks();
+        countdownStartMs = GetNowMs();
         if (audioDebug) {
-            std::printf("startCountdown fromPause=%d tick=%u\n",
-                        fromPause ? 1 : 0, countdownStartTicks);
+            std::printf("startCountdown fromPause=%d ms=%.3f\n",
+                        fromPause ? 1 : 0, countdownStartMs);
         }
         if (!fromPause) {
-            startTicks = countdownStartTicks;
+            startTimeMs = countdownStartMs;
             timeOffsetMs = 0;
             pausedGameTimeMs = 0;
         }
@@ -465,7 +535,7 @@ int main(int argc, char* argv[]) {
     bool running = true;
     // 主循环
     while (running) {
-        Uint32 frameStart = SDL_GetTicks();
+        double frameStartMs = GetNowMs();
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
@@ -485,8 +555,8 @@ int main(int argc, char* argv[]) {
                     } else if (state == AppState::Countdown) {
                         break;
                     } else if (state == AppState::Playing) {
-                        pauseStartTicks = SDL_GetTicks();
-                        pausedGameTimeMs = static_cast<int>(pauseStartTicks - startTicks - timeOffsetMs);
+                        pauseStartMs = GetNowMs();
+                        pausedGameTimeMs = pauseStartMs - startTimeMs - timeOffsetMs;
                         pauseMenuIndex = 0;
                         pauseAudio();
                         state = AppState::Paused;
@@ -553,15 +623,15 @@ int main(int argc, char* argv[]) {
         }
 
         if (state == AppState::Countdown) {
-            Uint32 elapsed = SDL_GetTicks() - countdownStartTicks;
-            if (elapsed >= static_cast<Uint32>(countdownDurationMs)) {
+            double elapsed = GetNowMs() - countdownStartMs;
+            if (elapsed >= countdownDurationMs) {
                 if (countdownFromPause) {
-                    timeOffsetMs += static_cast<int>(SDL_GetTicks() - pauseStartTicks);
+                    timeOffsetMs += GetNowMs() - pauseStartMs;
                 } else {
                     timeOffsetMs += countdownDurationMs;
                 }
                 if (audioDebug) {
-                    std::printf("countdown finished tick=%u\n", SDL_GetTicks());
+                    std::printf("countdown finished ms=%.3f\n", GetNowMs());
                 }
                 startAudio(!countdownFromPause);
                 countdownFromPause = false;
@@ -573,7 +643,7 @@ int main(int argc, char* argv[]) {
             for (int lane = 0; lane < static_cast<int>(keyMap.size()); ++lane) {
                 SDL_Scancode scancode = keyMap[lane];
                 if (scancode != SDL_SCANCODE_UNKNOWN && keys[scancode] && !prevKeys[scancode]) {
-                    int nowMs = static_cast<int>(SDL_GetTicks() - startTicks - timeOffsetMs);
+                    int nowMs = static_cast<int>(GetNowMs() - startTimeMs - timeOffsetMs);
                     game.HandleInput(lane, nowMs);
                 }
             }
@@ -581,32 +651,31 @@ int main(int argc, char* argv[]) {
 
 #ifdef USE_SDL_MIXER
         if (audioDebug && state == AppState::Playing && music && Mix_PlayingMusic()) {
-            Uint32 nowTicks = SDL_GetTicks();
-            if (nowTicks - lastAudioLogTicks >= 1000) {
+            double nowMs = GetNowMs();
+            if (nowMs - lastAudioLogMs >= 1000.0) {
                 double pos = Mix_GetMusicPosition(music);
-                std::printf("audio tick=%u musicPos=%.3f paused=%d\n",
-                            nowTicks, pos, Mix_PausedMusic() ? 1 : 0);
-                lastAudioLogTicks = nowTicks;
+                std::printf("audio ms=%.3f musicPos=%.3f paused=%d\n",
+                            nowMs, pos, Mix_PausedMusic() ? 1 : 0);
+                lastAudioLogMs = nowMs;
             }
         }
 #endif
 
         int nowMs = 0;
         if (state == AppState::Playing) {
-            nowMs = static_cast<int>(SDL_GetTicks() - startTicks - timeOffsetMs);
+            nowMs = static_cast<int>(GetNowMs() - startTimeMs - timeOffsetMs);
             game.Update(nowMs);
             RenderFrame(renderer, game, nowMs, scrollSpeed, renderConfig, false);
         } else if (state == AppState::Ready) {
             RenderFrame(renderer, game, 0, scrollSpeed, renderConfig, true);
         } else if (state == AppState::Countdown) {
-            int renderTime = countdownFromPause ? pausedGameTimeMs : 0;
+            int renderTime = countdownFromPause ? static_cast<int>(pausedGameTimeMs) : 0;
             RenderFrame(renderer, game, renderTime, scrollSpeed, renderConfig, false);
-            Uint32 elapsed = SDL_GetTicks() - countdownStartTicks;
-            int remaining = countdownDurationMs - static_cast<int>(elapsed);
+            int remaining = countdownDurationMs - static_cast<int>(GetNowMs() - countdownStartMs);
             int number = std::max(1, (remaining + 999) / 1000);
             RenderCountdown(renderer, renderConfig, number);
         } else if (state == AppState::Paused) {
-            RenderFrame(renderer, game, pausedGameTimeMs, scrollSpeed, renderConfig, false);
+            RenderFrame(renderer, game, static_cast<int>(pausedGameTimeMs), scrollSpeed, renderConfig, false);
             RenderPauseMenu(renderer, renderConfig, pauseMenuIndex);
         } else {
             std::vector<std::string> labels;
@@ -633,9 +702,9 @@ int main(int argc, char* argv[]) {
         }
         SDL_SetWindowTitle(window, title);
 
-        Uint32 frameElapsed = SDL_GetTicks() - frameStart;
-        if (frameElapsed < static_cast<Uint32>(targetFrameMs)) {
-            SDL_Delay(targetFrameMs - frameElapsed);
+        double frameElapsed = GetNowMs() - frameStartMs;
+        if (frameElapsed < targetFrameMs) {
+            SDL_Delay(static_cast<Uint32>(targetFrameMs - frameElapsed));
         }
 
         std::copy(keys, keys + SDL_NUM_SCANCODES, prevKeys.begin());
