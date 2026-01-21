@@ -24,9 +24,6 @@ else()
     target_link_libraries(simplemania PRIVATE SDL2::SDL2)
 endif()
 
-if(WIN32)
-    target_link_libraries(simplemania PRIVATE winmm)
-endif()
 
 if(SDL2_mixer_FOUND)
     if(TARGET SDL2_mixer::SDL2_mixer)

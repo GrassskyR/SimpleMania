@@ -1,28 +1,14 @@
 #include <SDL.h>
+#include <SDL.h>
 #ifdef USE_SDL_MIXER
 #include <SDL_mixer.h>
 #endif
 
 #include <algorithm>
 #include <cstdio>
-#include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <vector>
-
-#ifdef _WIN32
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#ifndef WINAPI
-#define WINAPI __stdcall
-#endif
-extern "C" {
-__declspec(dllimport) unsigned int WINAPI timeBeginPeriod(unsigned int uPeriod);
-__declspec(dllimport) unsigned int WINAPI timeEndPeriod(unsigned int uPeriod);
-}
-static constexpr unsigned int kTimeOk = 0;
-#endif
 
 #include "Game.h"
 #include "OsuParser.h"
@@ -73,92 +59,6 @@ double GetNowMs() {
     return static_cast<double>(SDL_GetPerformanceCounter()) * 1000.0 /
            static_cast<double>(SDL_GetPerformanceFrequency());
 }
-
-void LogAudioSpec(const char* label, const SDL_AudioSpec& spec) {
-    std::printf("%s freq=%d format=0x%04x channels=%u samples=%u\n",
-                label, spec.freq, spec.format, spec.channels, spec.samples);
-}
-
-void LogAudioDevices() {
-    int deviceCount = SDL_GetNumAudioDevices(0);
-    std::printf("Audio output devices: %d\n", deviceCount);
-    for (int i = 0; i < deviceCount; ++i) {
-        const char* name = SDL_GetAudioDeviceName(i, 0);
-        std::printf("  [%d] %s\n", i, name ? name : "(null)");
-        SDL_AudioSpec spec{};
-        if (SDL_GetAudioDeviceSpec(i, 0, &spec) == 0) {
-            LogAudioSpec("    spec", spec);
-        }
-    }
-}
-
-std::string SelectAudioDevice(bool audioDebug) {
-    const char* deviceEnv = std::getenv("SM_AUDIO_DEVICE");
-    if (deviceEnv && deviceEnv[0] != '\0') {
-        std::string token = deviceEnv;
-        int index = -1;
-        try {
-            index = std::stoi(token);
-        } catch (...) {
-            index = -1;
-        }
-        int deviceCount = SDL_GetNumAudioDevices(0);
-        if (index >= 0 && index < deviceCount) {
-            const char* name = SDL_GetAudioDeviceName(index, 0);
-            if (audioDebug) {
-                std::printf("Selected audio device by index: %d (%s)\n", index, name ? name : "(null)");
-            }
-            return name ? name : std::string();
-        }
-        for (int i = 0; i < deviceCount; ++i) {
-            const char* name = SDL_GetAudioDeviceName(i, 0);
-            if (!name) {
-                continue;
-            }
-            std::string current = name;
-            if (current.find(token) != std::string::npos) {
-                if (audioDebug) {
-                    std::printf("Selected audio device by name: %s\n", name);
-                }
-                return current;
-            }
-        }
-    }
-
-    int deviceCount = SDL_GetNumAudioDevices(0);
-    std::string fallback;
-    for (int i = 0; i < deviceCount; ++i) {
-        const char* name = SDL_GetAudioDeviceName(i, 0);
-        if (!name) {
-            continue;
-        }
-        if (fallback.empty()) {
-            fallback = name;
-        }
-        SDL_AudioSpec spec{};
-        if (SDL_GetAudioDeviceSpec(i, 0, &spec) == 0) {
-            if (spec.format != 0 && spec.freq >= 44100) {
-                if (audioDebug) {
-                    std::printf("Auto-selected audio device: %s\n", name);
-                }
-                return name;
-            }
-        }
-    }
-    return std::string();
-}
-
-#ifdef USE_SDL_MIXER
-void LogMusicState(const char* label, Mix_Music* music) {
-    if (!music) {
-        std::printf("%s music=null\n", label);
-        return;
-    }
-    double pos = Mix_GetMusicPosition(music);
-    std::printf("%s playing=%d paused=%d pos=%.3f\n",
-                label, Mix_PlayingMusic(), Mix_PausedMusic(), pos);
-}
-#endif
 
 struct ChartEntry {
     std::string label;
@@ -213,54 +113,15 @@ std::vector<ChartEntry> ScanCharts(const std::string& rootPath) {
     return entries;
 }
 
-#ifdef _WIN32
-bool EnableHighResolutionTimer() {
-    return timeBeginPeriod(1) == kTimeOk;
-}
-
-void DisableHighResolutionTimer() {
-    timeEndPeriod(1);
-}
-#else
-bool EnableHighResolutionTimer() {
-    return false;
-}
-
-void DisableHighResolutionTimer() {}
-#endif
 }
 
 int main(int argc, char* argv[]) {
     // 主入口：初始化SDL、加载菜单与游戏循环
     std::string osuPath = argc > 1 ? argv[1] : "";
-    const char* audioDebugEnv = std::getenv("SM_AUDIO_DEBUG");
-    bool audioDebug = audioDebugEnv && std::string(audioDebugEnv) == "1";
 
-    bool highResTimer = EnableHighResolutionTimer();
-
-    SDL_SetHint(SDL_HINT_TIMER_RESOLUTION, "1");
-    SDL_SetHint(SDL_HINT_AUDIO_RESAMPLING_MODE, "linear");
-
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) {
         std::printf("SDL init failed: %s\n", SDL_GetError());
         return 1;
-    }
-
-    if (SDL_AudioInit("wasapi") != 0) {
-        if (SDL_AudioInit(nullptr) != 0) {
-            std::printf("SDL audio init failed: %s\n", SDL_GetError());
-            SDL_Quit();
-            return 1;
-        }
-    }
-    std::string preferredDevice = SelectAudioDevice(audioDebug);
-    const char* preferredDeviceName = preferredDevice.empty() ? nullptr : preferredDevice.c_str();
-    if (audioDebug) {
-        std::printf("SDL audio driver: %s\n", SDL_GetCurrentAudioDriver());
-        std::printf("Performance frequency: %lld\n", static_cast<long long>(SDL_GetPerformanceFrequency()));
-        std::printf("High resolution timer: %s\n", highResTimer ? "on" : "off");
-        LogAudioDevices();
-        std::printf("Using audio device: %s\n", preferredDeviceName ? preferredDeviceName : "(default)");
     }
 
     RenderConfig renderConfig;
@@ -298,43 +159,8 @@ int main(int argc, char* argv[]) {
 #ifdef USE_SDL_MIXER
     Mix_Music* music = nullptr;
     Mix_Init(MIX_INIT_MP3 | MIX_INIT_OGG);
-    int mixFrequency = 48000;
-    SDL_AudioSpec probeDesired{};
-    SDL_AudioSpec probeObtained{};
-    probeDesired.freq = mixFrequency;
-    probeDesired.format = MIX_DEFAULT_FORMAT;
-    probeDesired.channels = 2;
-    probeDesired.samples = 4096;
-    SDL_AudioDeviceID probeDevice = SDL_OpenAudioDevice(preferredDeviceName, 0, &probeDesired, &probeObtained,
-                                                        SDL_AUDIO_ALLOW_ANY_CHANGE);
-    if (probeDevice != 0) {
-        if (probeObtained.freq > 0) {
-            mixFrequency = probeObtained.freq;
-        }
-        if (audioDebug) {
-            LogAudioSpec("Probe obtained", probeObtained);
-        }
-        SDL_CloseAudioDevice(probeDevice);
-    }
-    if (audioDebug) {
-        std::printf("SDL_mixer request: freq=%d format=0x%04x channels=%d samples=%d\n",
-                    mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096);
-    }
-    if (Mix_OpenAudioDevice(mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096, preferredDeviceName,
-                            SDL_AUDIO_ALLOW_ANY_CHANGE) != 0) {
-            std::printf("Mix_OpenAudio failed: %s\n", Mix_GetError());
-    } else {
-        int actualFreq = 0;
-        int actualChannels = 0;
-        Uint16 actualFormat = 0;
-        if (Mix_QuerySpec(&actualFreq, &actualFormat, &actualChannels) != 0) {
-            if (audioDebug) {
-                std::printf("SDL_mixer actual: freq=%d format=0x%04x channels=%d\n",
-                            actualFreq, actualFormat, actualChannels);
-            }
-        } else if (audioDebug) {
-            std::printf("Mix_QuerySpec failed: %s\n", Mix_GetError());
-        }
+    if (Mix_OpenAudio(48000, MIX_DEFAULT_FORMAT, 2, 4096) != 0) {
+        std::printf("Mix_OpenAudio failed: %s\n", Mix_GetError());
     }
 #else
     SDL_AudioDeviceID audioDevice = 0;
@@ -368,7 +194,6 @@ int main(int argc, char* argv[]) {
     AppState state = AppState::Menu;
     int pauseMenuIndex = 0;
     const int countdownDurationMs = 3000;
-    double lastAudioLogMs = GetNowMs();
 
     // 释放当前音频资源
     auto unloadAudio = [&]() {
@@ -409,10 +234,6 @@ int main(int argc, char* argv[]) {
 #ifdef USE_SDL_MIXER
         if (!audioPath.empty()) {
             music = Mix_LoadMUS(audioPath.c_str());
-            if (audioDebug) {
-                std::printf("LoadMusic path=%s\n", audioPath.c_str());
-                LogMusicState("LoadMusic", music);
-            }
             if (!music) {
                 std::printf("Failed to load music: %s\n", Mix_GetError());
             }
@@ -449,10 +270,6 @@ int main(int argc, char* argv[]) {
     auto startCountdown = [&](bool fromPause) {
         countdownFromPause = fromPause;
         countdownStartMs = GetNowMs();
-        if (audioDebug) {
-            std::printf("startCountdown fromPause=%d ms=%.3f\n",
-                        fromPause ? 1 : 0, countdownStartMs);
-        }
         if (!fromPause) {
             startTimeMs = countdownStartMs;
             timeOffsetMs = 0;
@@ -464,10 +281,6 @@ int main(int argc, char* argv[]) {
     auto startAudio = [&](bool restart) {
 #ifdef USE_SDL_MIXER
         if (music) {
-            if (audioDebug) {
-                std::printf("startAudio restart=%d\n", restart ? 1 : 0);
-                LogMusicState("startAudio(before)", music);
-            }
             if (restart) {
                 Mix_HaltMusic();
                 Mix_RewindMusic();
@@ -476,9 +289,6 @@ int main(int argc, char* argv[]) {
                 Mix_ResumeMusic();
             } else if (!Mix_PlayingMusic()) {
                 Mix_PlayMusic(music, 0);
-            }
-            if (audioDebug) {
-                LogMusicState("startAudio(after)", music);
             }
         }
 #else
@@ -495,14 +305,7 @@ int main(int argc, char* argv[]) {
     auto pauseAudio = [&]() {
 #ifdef USE_SDL_MIXER
         if (music) {
-            if (audioDebug) {
-                std::printf("pauseAudio\n");
-                LogMusicState("pauseAudio(before)", music);
-            }
             Mix_PauseMusic();
-            if (audioDebug) {
-                LogMusicState("pauseAudio(after)", music);
-            }
         }
 #else
         if (audioDevice != 0) {
@@ -630,9 +433,6 @@ int main(int argc, char* argv[]) {
                 } else {
                     timeOffsetMs += countdownDurationMs;
                 }
-                if (audioDebug) {
-                    std::printf("countdown finished ms=%.3f\n", GetNowMs());
-                }
                 startAudio(!countdownFromPause);
                 countdownFromPause = false;
                 state = AppState::Playing;
@@ -649,17 +449,6 @@ int main(int argc, char* argv[]) {
             }
         }
 
-#ifdef USE_SDL_MIXER
-        if (audioDebug && state == AppState::Playing && music && Mix_PlayingMusic()) {
-            double nowMs = GetNowMs();
-            if (nowMs - lastAudioLogMs >= 1000.0) {
-                double pos = Mix_GetMusicPosition(music);
-                std::printf("audio ms=%.3f musicPos=%.3f paused=%d\n",
-                            nowMs, pos, Mix_PausedMusic() ? 1 : 0);
-                lastAudioLogMs = nowMs;
-            }
-        }
-#endif
 
         int nowMs = 0;
         if (state == AppState::Playing) {
@@ -726,11 +515,6 @@ int main(int argc, char* argv[]) {
 #endif
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
-#ifdef _WIN32
-    if (highResTimer) {
-        DisableHighResolutionTimer();
-    }
-#endif
     SDL_Quit();
     return 0;
 }
