@@ -204,6 +204,13 @@ int main(int argc, char* argv[]) {
         return true;
     };
 
+    auto returnToMenu = [&]() {
+        unloadAudio();
+        started = false;
+        startTime = 0;
+        state = AppState::Menu;
+    };
+
     if (!osuPath.empty()) {
         if (loadChart(osuPath)) {
             state = AppState::Ready;
@@ -238,7 +245,11 @@ int main(int argc, char* argv[]) {
             } else if (event.type == SDL_KEYDOWN) {
                 SDL_Scancode code = event.key.keysym.scancode;
                 if (code == SDL_SCANCODE_ESCAPE) {
-                    running = false;
+                    if (state == AppState::Menu) {
+                        running = false;
+                    } else {
+                        returnToMenu();
+                    }
                 } else if (state == AppState::Menu) {
                     if (chartEntries.empty()) {
                         continue;
