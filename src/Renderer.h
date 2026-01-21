@@ -8,8 +8,11 @@
 #include "Game.h"
 
 struct RenderConfig {
-    int width = 900;
-    int height = 600;
+    int windowWidth = 900;
+    int windowHeight = 600;
+    int playWidth = 900;
+    int playHeight = 600;
+    int offsetX = 0;
     int judgeLineY = 480;
     int noteHeight = 12;
     int lanePadding = 2;

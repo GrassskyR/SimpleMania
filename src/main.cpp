@@ -51,7 +51,7 @@ std::vector<SDL_Scancode> BuildKeyMap(int keyCount) {
 }
 
 SDL_Rect GetPlayButtonRect(const RenderConfig& config) {
-    return SDL_Rect{config.width / 2 - 90, config.height / 2 - 30, 180, 60};
+    return SDL_Rect{config.windowWidth / 2 - 90, config.windowHeight / 2 - 30, 180, 60};
 }
 
 struct ChartEntry {
@@ -123,13 +123,16 @@ int main(int argc, char* argv[]) {
         {1920, 1080}
     };
     int resolutionIndex = 0;
-    renderConfig.width = resolutions[resolutionIndex].width;
-    renderConfig.height = resolutions[resolutionIndex].height;
-    renderConfig.judgeLineY = renderConfig.height - 80;
+    renderConfig.windowWidth = resolutions[resolutionIndex].width;
+    renderConfig.windowHeight = resolutions[resolutionIndex].height;
+    renderConfig.playWidth = 900;
+    renderConfig.playHeight = renderConfig.windowHeight;
+    renderConfig.offsetX = (renderConfig.windowWidth - renderConfig.playWidth) / 2;
+    renderConfig.judgeLineY = renderConfig.playHeight - 80;
 
     SDL_Window* window = SDL_CreateWindow(
         "SimpleMania", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        renderConfig.width, renderConfig.height, SDL_WINDOW_SHOWN);
+        renderConfig.windowWidth, renderConfig.windowHeight, SDL_WINDOW_SHOWN);
     if (!window) {
         std::printf("Window creation failed: %s\n", SDL_GetError());
         SDL_Quit();
@@ -239,10 +242,13 @@ int main(int argc, char* argv[]) {
     };
 
     auto applyResolution = [&]() {
-        renderConfig.width = resolutions[resolutionIndex].width;
-        renderConfig.height = resolutions[resolutionIndex].height;
-        renderConfig.judgeLineY = renderConfig.height - 80;
-        SDL_SetWindowSize(window, renderConfig.width, renderConfig.height);
+        renderConfig.windowWidth = resolutions[resolutionIndex].width;
+        renderConfig.windowHeight = resolutions[resolutionIndex].height;
+        renderConfig.playWidth = 900;
+        renderConfig.playHeight = renderConfig.windowHeight;
+        renderConfig.offsetX = (renderConfig.windowWidth - renderConfig.playWidth) / 2;
+        renderConfig.judgeLineY = renderConfig.playHeight - 80;
+        SDL_SetWindowSize(window, renderConfig.windowWidth, renderConfig.windowHeight);
         SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
         playButton = GetPlayButtonRect(renderConfig);
     };

@@ -126,22 +126,22 @@ void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scro
     SDL_RenderClear(renderer);
 
     int keyCount = std::max(1, game.GetKeyCount());
-    float laneWidth = static_cast<float>(config.width) / static_cast<float>(keyCount);
+    float laneWidth = static_cast<float>(config.playWidth) / static_cast<float>(keyCount);
 
     for (int lane = 0; lane < keyCount; ++lane) {
         SDL_Color color = LaneColor(lane, keyCount);
         SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 255);
         SDL_Rect laneRect{
-            static_cast<int>(lane * laneWidth + config.lanePadding),
+            static_cast<int>(config.offsetX + lane * laneWidth + config.lanePadding),
             0,
             static_cast<int>(laneWidth - config.lanePadding * 2),
-            config.height
+            config.playHeight
         };
         SDL_RenderFillRect(renderer, &laneRect);
     }
 
     SDL_SetRenderDrawColor(renderer, 220, 220, 230, 255);
-    SDL_Rect judgeLine{0, config.judgeLineY - 2, config.width, 4};
+    SDL_Rect judgeLine{config.offsetX, config.judgeLineY - 2, config.playWidth, 4};
     SDL_RenderFillRect(renderer, &judgeLine);
 
     const auto& notes = game.GetNotes();
@@ -151,11 +151,11 @@ void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scro
         }
         float timeDiff = static_cast<float>(note.timeMs - nowMs);
         float y = static_cast<float>(config.judgeLineY) - timeDiff * scrollSpeed;
-        if (y < -config.noteHeight || y > config.height + config.noteHeight) {
+        if (y < -config.noteHeight || y > config.playHeight + config.noteHeight) {
             continue;
         }
         SDL_Rect noteRect{
-            static_cast<int>(note.lane * laneWidth + config.lanePadding + 4),
+            static_cast<int>(config.offsetX + note.lane * laneWidth + config.lanePadding + 4),
             static_cast<int>(y - config.noteHeight),
             static_cast<int>(laneWidth - config.lanePadding * 2 - 8),
             config.noteHeight
@@ -176,34 +176,34 @@ void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scro
     std::snprintf(accText, sizeof(accText), "ACC %05.2f%%", acc);
     std::snprintf(speedText, sizeof(speedText), "SPEED %.2f", scrollSpeed);
 
-    DrawText(renderer, 16, 16, 2, textColor, scoreText);
-    DrawText(renderer, 16, 40, 2, textColor, speedText);
+    DrawText(renderer, config.offsetX + 16, 16, 2, textColor, scoreText);
+    DrawText(renderer, config.offsetX + 16, 40, 2, textColor, speedText);
     int accWidth = static_cast<int>(std::string(accText).size()) * 12;
-    DrawText(renderer, config.width - accWidth - 16, 16, 2, textColor, accText);
+    DrawText(renderer, config.offsetX + config.playWidth - accWidth - 16, 16, 2, textColor, accText);
 
     char comboText[64];
     std::snprintf(comboText, sizeof(comboText), "COMBO %d", stats.combo);
     int comboWidth = static_cast<int>(std::string(comboText).size()) * 12;
-    DrawText(renderer, config.width / 2 - comboWidth / 2, 56, 2, textColor, comboText);
+    DrawText(renderer, config.offsetX + config.playWidth / 2 - comboWidth / 2, 56, 2, textColor, comboText);
 
     if (stats.lastJudge != JudgeGrade::None && (nowMs - stats.lastJudgeTimeMs) < 1000) {
         std::string judgeText = JudgeToString(stats.lastJudge);
         int judgeScale = 3;
         int judgeWidth = static_cast<int>(judgeText.size()) * 6 * judgeScale;
-        int judgeX = config.width / 2 - judgeWidth / 2;
-        int judgeY = config.height / 2 + 40;
+        int judgeX = config.offsetX + config.playWidth / 2 - judgeWidth / 2;
+        int judgeY = config.playHeight / 2 + 40;
         DrawText(renderer, judgeX, judgeY, judgeScale, JudgeColor(stats.lastJudge), judgeText);
     }
 
     if (showStartOverlay) {
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 10, 10, 14, 180);
-        SDL_Rect overlay{0, 0, config.width, config.height};
+        SDL_Rect overlay{0, 0, config.windowWidth, config.windowHeight};
         SDL_RenderFillRect(renderer, &overlay);
 
         SDL_Rect button{
-            config.width / 2 - 90,
-            config.height / 2 - 30,
+            config.windowWidth / 2 - 90,
+            config.windowHeight / 2 - 30,
             180,
             60
         };
@@ -213,7 +213,7 @@ void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scro
         SDL_RenderDrawRect(renderer, &button);
 
         SDL_Color playText{30, 20, 10, 255};
-        DrawText(renderer, config.width / 2 - 30, config.height / 2 - 10, 3, playText, "PLAY");
+        DrawText(renderer, config.windowWidth / 2 - 30, config.windowHeight / 2 - 10, 3, playText, "PLAY");
     }
 
     SDL_RenderPresent(renderer);
