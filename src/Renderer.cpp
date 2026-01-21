@@ -110,6 +110,19 @@ std::string JudgeToString(JudgeGrade grade) {
             return "";
     }
 }
+
+SDL_Color JudgeColor(JudgeGrade grade) {
+    switch (grade) {
+        case JudgeGrade::Perfect:
+            return SDL_Color{245, 200, 70, 255};
+        case JudgeGrade::Good:
+            return SDL_Color{80, 170, 255, 255};
+        case JudgeGrade::Miss:
+            return SDL_Color{235, 80, 80, 255};
+        default:
+            return SDL_Color{240, 240, 240, 255};
+    }
+}
 }
 
 void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scrollSpeed,
@@ -176,7 +189,12 @@ void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scro
     DrawText(renderer, config.width / 2 - comboWidth / 2, 56, 2, textColor, comboText);
 
     if (stats.lastJudge != JudgeGrade::None && (nowMs - stats.lastJudgeTimeMs) < 1000) {
-        DrawText(renderer, 16, 88, 2, textColor, JudgeToString(stats.lastJudge));
+        std::string judgeText = JudgeToString(stats.lastJudge);
+        int judgeScale = 3;
+        int judgeWidth = static_cast<int>(judgeText.size()) * 6 * judgeScale;
+        int judgeX = config.width / 2 - judgeWidth / 2;
+        int judgeY = config.height / 2 + 40;
+        DrawText(renderer, judgeX, judgeY, judgeScale, JudgeColor(stats.lastJudge), judgeText);
     }
 
     if (showStartOverlay) {
