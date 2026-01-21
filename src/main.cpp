@@ -124,6 +124,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    SDL_StopTextInput();
+    SDL_EventState(SDL_TEXTINPUT, SDL_DISABLE);
+    SDL_EventState(SDL_TEXTEDITING, SDL_DISABLE);
+    SDL_SetHint(SDL_HINT_IME_SHOW_UI, "0");
+
     RenderConfig renderConfig;
     std::vector<ResolutionOption> resolutions = {
         {900, 600},
