@@ -6,14 +6,9 @@
 
 namespace {
 SDL_Color LaneColor(int lane, int keyCount) {
-    if (keyCount <= 1) {
-        return SDL_Color{60, 60, 70, 255};
-    }
-    float t = static_cast<float>(lane) / static_cast<float>(keyCount - 1);
-    Uint8 r = static_cast<Uint8>(40 + 30 * t);
-    Uint8 g = static_cast<Uint8>(50 + 60 * (1.0f - t));
-    Uint8 b = static_cast<Uint8>(70 + 40 * t);
-    return SDL_Color{r, g, b, 255};
+    (void)lane;
+    (void)keyCount;
+    return SDL_Color{0, 0, 0, 255};
 }
 
 struct Glyph {
@@ -127,7 +122,7 @@ SDL_Color JudgeColor(JudgeGrade grade) {
 
 void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scrollSpeed,
                  const RenderConfig& config, bool showStartOverlay) {
-    SDL_SetRenderDrawColor(renderer, 18, 18, 24, 255);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
 
     int keyCount = std::max(1, game.GetKeyCount());
