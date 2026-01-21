@@ -242,6 +242,7 @@ void RenderMenu(SDL_Renderer* renderer, const RenderConfig& config,
     SDL_Color hintColor{180, 180, 180, 255};
     DrawText(renderer, 24, 60, 2, hintColor, "UP/DOWN: SELECT  ENTER: PLAY");
     DrawText(renderer, 24, 82, 2, hintColor, "CTRL +/-: SPEED  F5: RESOLUTION  ESC: QUIT");
+    DrawText(renderer, 24, 104, 2, hintColor, "KEYS 4K DFJK  5K DF SPACE JK  6K SDF JKL  7K SDF SPACE JKL");
 
     if (items.empty()) {
         SDL_Color warnColor{220, 120, 120, 255};
@@ -249,7 +250,7 @@ void RenderMenu(SDL_Renderer* renderer, const RenderConfig& config,
         return;
     }
 
-    int startY = 120;
+    int startY = 140;
     for (int i = 0; i < static_cast<int>(items.size()); ++i) {
         SDL_Color color = (i == selectedIndex) ? SDL_Color{240, 200, 80, 255}
                                                 : SDL_Color{220, 220, 220, 255};
