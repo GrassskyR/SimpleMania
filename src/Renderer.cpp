@@ -267,14 +267,22 @@ void RenderPauseMenu(SDL_Renderer* renderer, const RenderConfig& config, int sel
 
     SDL_Color titleColor{240, 240, 240, 255};
     int centerX = config.windowWidth / 2;
-    DrawText(renderer, centerX - 54, config.windowHeight / 2 - 70, 3, titleColor, "PAUSED");
+    int titleScale = 3;
+    std::string titleText = "PAUSED";
+    int titleWidth = static_cast<int>(titleText.size()) * 6 * titleScale;
+    DrawText(renderer, centerX - titleWidth / 2, config.windowHeight / 2 - 70, titleScale, titleColor, titleText);
 
     SDL_Color normal{220, 220, 220, 255};
     SDL_Color active{245, 200, 80, 255};
     SDL_Color resumeColor = selectedIndex == 0 ? active : normal;
     SDL_Color menuColor = selectedIndex == 1 ? active : normal;
-    DrawText(renderer, centerX - 60, config.windowHeight / 2 - 10, 2, resumeColor, "RESUME");
-    DrawText(renderer, centerX - 90, config.windowHeight / 2 + 20, 2, menuColor, "BACK TO MENU");
+    int optionScale = 2;
+    std::string resumeText = "RESUME";
+    std::string menuText = "BACK TO MENU";
+    int resumeWidth = static_cast<int>(resumeText.size()) * 6 * optionScale;
+    int menuWidth = static_cast<int>(menuText.size()) * 6 * optionScale;
+    DrawText(renderer, centerX - resumeWidth / 2, config.windowHeight / 2 - 10, optionScale, resumeColor, resumeText);
+    DrawText(renderer, centerX - menuWidth / 2, config.windowHeight / 2 + 20, optionScale, menuColor, menuText);
 
 }
 
