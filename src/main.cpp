@@ -68,6 +68,7 @@ std::vector<ChartEntry> ScanCharts(const std::string& rootPath) {
     std::vector<ChartEntry> entries;
     std::error_code error;
     if (!std::filesystem::exists(rootPath, error)) {
+        std::filesystem::create_directories(rootPath, error);
         return entries;
     }
 
