@@ -348,6 +348,8 @@ int main(int argc, char* argv[]) {
                 if (code == SDL_SCANCODE_ESCAPE) {
                     if (state == AppState::Menu) {
                         running = false;
+                    } else if (state == AppState::Countdown) {
+                        break;
                     } else if (state == AppState::Playing) {
                         pauseStartTicks = SDL_GetTicks();
                         pausedGameTimeMs = static_cast<int>(pauseStartTicks - startTicks - timeOffsetMs);
