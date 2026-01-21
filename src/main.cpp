@@ -168,7 +168,7 @@ int main(int argc, char* argv[]) {
     Chart chart;
     Game game;
     std::vector<SDL_Scancode> keyMap;
-    float scrollSpeed = 0.5f;
+    float scrollSpeed = 1.0f;
     Uint32 startTime = 0;
     bool started = false;
     SDL_Rect playButton = GetPlayButtonRect(renderConfig);
@@ -322,10 +322,12 @@ int main(int argc, char* argv[]) {
                         SDL_PauseAudioDevice(audioDevice, 0);
                     }
 #endif
-                } else if (state != AppState::Menu && code == SDL_SCANCODE_UP) {
-                    scrollSpeed = std::min(3.0f, scrollSpeed + 0.1f);
-                } else if (state != AppState::Menu && code == SDL_SCANCODE_DOWN) {
-                    scrollSpeed = std::max(0.1f, scrollSpeed - 0.1f);
+                } else if (state != AppState::Menu && (event.key.keysym.mod & KMOD_CTRL) != 0) {
+                    if (code == SDL_SCANCODE_EQUALS || code == SDL_SCANCODE_KP_PLUS) {
+                        scrollSpeed = std::min(3.0f, scrollSpeed + 0.1f);
+                    } else if (code == SDL_SCANCODE_MINUS || code == SDL_SCANCODE_KP_MINUS) {
+                        scrollSpeed = std::max(0.1f, scrollSpeed - 0.1f);
+                    }
                 } else if (state == AppState::Playing) {
                     for (int lane = 0; lane < static_cast<int>(keyMap.size()); ++lane) {
                         if (keyMap[lane] == code) {
