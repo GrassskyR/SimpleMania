@@ -151,6 +151,8 @@ int main(int argc, char* argv[]) {
 
 #ifdef USE_SDL_MIXER
     Mix_Music* music = nullptr;
+    double pausedMusicPos = 0.0;
+    bool hasPausedMusicPos = false;
     Mix_Init(MIX_INIT_MP3 | MIX_INIT_OGG);
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) != 0) {
         std::printf("Mix_OpenAudio failed: %s\n", Mix_GetError());
@@ -257,6 +259,10 @@ int main(int argc, char* argv[]) {
         pausedGameTimeMs = 0;
         countdownFromPause = false;
         pauseMenuIndex = 0;
+#ifdef USE_SDL_MIXER
+        pausedMusicPos = 0.0;
+        hasPausedMusicPos = false;
+#endif
         state = AppState::Menu;
     };
 
@@ -274,11 +280,12 @@ int main(int argc, char* argv[]) {
     auto startAudio = [&](bool restart) {
 #ifdef USE_SDL_MIXER
         if (music) {
-            if (restart) {
-                Mix_PlayMusic(music, 0);
+            if (restart || !hasPausedMusicPos) {
+                Mix_FadeInMusic(music, 0, 120);
             } else {
-                Mix_ResumeMusic();
+                Mix_FadeInMusicPos(music, 0, 120, pausedMusicPos);
             }
+            hasPausedMusicPos = false;
         }
 #else
         if (audioDevice != 0 && wavBuffer) {
@@ -294,7 +301,10 @@ int main(int argc, char* argv[]) {
     auto pauseAudio = [&]() {
 #ifdef USE_SDL_MIXER
         if (music) {
-            Mix_PauseMusic();
+            double pos = Mix_GetMusicPosition(music);
+            pausedMusicPos = pos > 0.0 ? pos : 0.0;
+            hasPausedMusicPos = true;
+            Mix_HaltMusic();
         }
 #else
         if (audioDevice != 0) {
