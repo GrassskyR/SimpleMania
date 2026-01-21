@@ -354,6 +354,8 @@ int main(int argc, char* argv[]) {
                         pauseMenuIndex = 0;
                         pauseAudio();
                         state = AppState::Paused;
+                    } else if (state == AppState::Paused) {
+                        startCountdown(true);
                     } else {
                         returnToMenu();
                     }
