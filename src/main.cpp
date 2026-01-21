@@ -77,8 +77,19 @@ std::vector<ChartEntry> ScanCharts(const std::string& rootPath) {
             }
             if (fileEntry.path().extension() == ".osu") {
                 ChartEntry entry;
-                entry.label = folder + " / " + fileEntry.path().stem().string();
                 entry.path = fileEntry.path().string();
+                Chart metadata;
+                std::string errorText;
+                if (ParseOsuFile(entry.path, metadata, errorText)) {
+                    if (!metadata.title.empty() && !metadata.version.empty()) {
+                        entry.label = metadata.title + " - " + metadata.version;
+                    } else if (!metadata.title.empty()) {
+                        entry.label = metadata.title;
+                    }
+                }
+                if (entry.label.empty()) {
+                    entry.label = fileEntry.path().stem().string();
+                }
                 entries.push_back(entry);
             }
         }

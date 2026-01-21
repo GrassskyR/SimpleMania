@@ -92,6 +92,8 @@ bool ParseOsuFile(const std::string& path, Chart& outChart, std::string& error) 
                     outChart.title = value;
                 } else if (key == "Artist") {
                     outChart.artist = value;
+                } else if (key == "Version") {
+                    outChart.version = value;
                 }
             }
             continue;

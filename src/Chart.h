@@ -21,6 +21,7 @@ struct Note {
 struct Chart {
     std::string title;
     std::string artist;
+    std::string version;
     std::string audioFilename;
     int keyCount = 4;
     double baseBpm = 120.0;
