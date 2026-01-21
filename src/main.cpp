@@ -73,6 +73,18 @@ void LogAudioDevices() {
     }
 }
 
+#ifdef USE_SDL_MIXER
+void LogMusicState(const char* label, Mix_Music* music) {
+    if (!music) {
+        std::printf("%s music=null\n", label);
+        return;
+    }
+    double pos = Mix_GetMusicPosition(music);
+    std::printf("%s playing=%d paused=%d pos=%.3f\n",
+                label, Mix_PlayingMusic(), Mix_PausedMusic(), pos);
+}
+#endif
+
 struct ChartEntry {
     std::string label;
     std::string path;
@@ -300,6 +312,10 @@ int main(int argc, char* argv[]) {
 #ifdef USE_SDL_MIXER
         if (!audioPath.empty()) {
             music = Mix_LoadMUS(audioPath.c_str());
+            if (audioDebug) {
+                std::printf("LoadMusic path=%s\n", audioPath.c_str());
+                LogMusicState("LoadMusic", music);
+            }
             if (!music) {
                 std::printf("Failed to load music: %s\n", Mix_GetError());
             }
@@ -336,6 +352,10 @@ int main(int argc, char* argv[]) {
     auto startCountdown = [&](bool fromPause) {
         countdownFromPause = fromPause;
         countdownStartTicks = SDL_GetTicks();
+        if (audioDebug) {
+            std::printf("startCountdown fromPause=%d tick=%u\n",
+                        fromPause ? 1 : 0, countdownStartTicks);
+        }
         if (!fromPause) {
             startTicks = countdownStartTicks;
             timeOffsetMs = 0;
@@ -349,6 +369,7 @@ int main(int argc, char* argv[]) {
         if (music) {
             if (audioDebug) {
                 std::printf("startAudio restart=%d\n", restart ? 1 : 0);
+                LogMusicState("startAudio(before)", music);
             }
             if (restart) {
                 Mix_HaltMusic();
@@ -358,6 +379,9 @@ int main(int argc, char* argv[]) {
                 Mix_ResumeMusic();
             } else if (!Mix_PlayingMusic()) {
                 Mix_PlayMusic(music, 0);
+            }
+            if (audioDebug) {
+                LogMusicState("startAudio(after)", music);
             }
         }
 #else
@@ -376,8 +400,12 @@ int main(int argc, char* argv[]) {
         if (music) {
             if (audioDebug) {
                 std::printf("pauseAudio\n");
+                LogMusicState("pauseAudio(before)", music);
             }
             Mix_PauseMusic();
+            if (audioDebug) {
+                LogMusicState("pauseAudio(after)", music);
+            }
         }
 #else
         if (audioDevice != 0) {
@@ -504,6 +532,9 @@ int main(int argc, char* argv[]) {
                     timeOffsetMs += static_cast<int>(SDL_GetTicks() - pauseStartTicks);
                 } else {
                     timeOffsetMs += countdownDurationMs;
+                }
+                if (audioDebug) {
+                    std::printf("countdown finished tick=%u\n", SDL_GetTicks());
                 }
                 startAudio(!countdownFromPause);
                 countdownFromPause = false;
