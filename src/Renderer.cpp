@@ -226,7 +226,6 @@ void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scro
         DrawText(renderer, config.windowWidth / 2 - 30, config.windowHeight / 2 - 10, 3, playText, "PLAY");
     }
 
-    SDL_RenderPresent(renderer);
 }
 
 void RenderMenu(SDL_Renderer* renderer, const RenderConfig& config,
@@ -245,7 +244,6 @@ void RenderMenu(SDL_Renderer* renderer, const RenderConfig& config,
     if (items.empty()) {
         SDL_Color warnColor{220, 120, 120, 255};
         DrawText(renderer, 24, 80, 2, warnColor, "NO OSU FILES FOUND");
-        SDL_RenderPresent(renderer);
         return;
     }
 
@@ -256,7 +254,6 @@ void RenderMenu(SDL_Renderer* renderer, const RenderConfig& config,
         DrawText(renderer, 40, startY + i * 26, 2, color, items[i]);
     }
 
-    SDL_RenderPresent(renderer);
 }
 
 void RenderPauseMenu(SDL_Renderer* renderer, const RenderConfig& config, int selectedIndex) {
@@ -277,7 +274,6 @@ void RenderPauseMenu(SDL_Renderer* renderer, const RenderConfig& config, int sel
     DrawText(renderer, centerX - 60, config.windowHeight / 2 - 10, 2, resumeColor, "RESUME");
     DrawText(renderer, centerX - 90, config.windowHeight / 2 + 20, 2, menuColor, "BACK TO MENU");
 
-    SDL_RenderPresent(renderer);
 }
 
 void RenderCountdown(SDL_Renderer* renderer, const RenderConfig& config, int number) {
@@ -289,5 +285,4 @@ void RenderCountdown(SDL_Renderer* renderer, const RenderConfig& config, int num
     int x = config.windowWidth / 2 - textWidth / 2;
     int y = config.windowHeight / 2 - (7 * scale) / 2;
     DrawText(renderer, x, y, scale, color, text);
-    SDL_RenderPresent(renderer);
 }

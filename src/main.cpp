@@ -151,10 +151,8 @@ int main(int argc, char* argv[]) {
 
 #ifdef USE_SDL_MIXER
     Mix_Music* music = nullptr;
-    double pausedMusicPos = 0.0;
-    bool hasPausedMusicPos = false;
     Mix_Init(MIX_INIT_MP3 | MIX_INIT_OGG);
-    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) != 0) {
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096) != 0) {
         std::printf("Mix_OpenAudio failed: %s\n", Mix_GetError());
     }
 #else
@@ -259,10 +257,6 @@ int main(int argc, char* argv[]) {
         pausedGameTimeMs = 0;
         countdownFromPause = false;
         pauseMenuIndex = 0;
-#ifdef USE_SDL_MIXER
-        pausedMusicPos = 0.0;
-        hasPausedMusicPos = false;
-#endif
         state = AppState::Menu;
     };
 
@@ -280,12 +274,15 @@ int main(int argc, char* argv[]) {
     auto startAudio = [&](bool restart) {
 #ifdef USE_SDL_MIXER
         if (music) {
-            if (restart || !hasPausedMusicPos) {
-                Mix_FadeInMusic(music, 0, 120);
-            } else {
-                Mix_FadeInMusicPos(music, 0, 120, pausedMusicPos);
+            if (restart) {
+                Mix_HaltMusic();
+                Mix_RewindMusic();
+                Mix_PlayMusic(music, 0);
+            } else if (Mix_PausedMusic()) {
+                Mix_ResumeMusic();
+            } else if (!Mix_PlayingMusic()) {
+                Mix_PlayMusic(music, 0);
             }
-            hasPausedMusicPos = false;
         }
 #else
         if (audioDevice != 0 && wavBuffer) {
@@ -301,10 +298,7 @@ int main(int argc, char* argv[]) {
     auto pauseAudio = [&]() {
 #ifdef USE_SDL_MIXER
         if (music) {
-            double pos = Mix_GetMusicPosition(music);
-            pausedMusicPos = pos > 0.0 ? pos : 0.0;
-            hasPausedMusicPos = true;
-            Mix_HaltMusic();
+            Mix_PauseMusic();
         }
 #else
         if (audioDevice != 0) {
@@ -469,6 +463,8 @@ int main(int argc, char* argv[]) {
             }
             RenderMenu(renderer, renderConfig, labels, selectedIndex);
         }
+
+        SDL_RenderPresent(renderer);
 
         const GameStats& stats = game.GetStats();
         char title[256];
