@@ -59,6 +59,11 @@ struct ChartEntry {
     std::string path;
 };
 
+struct ResolutionOption {
+    int width = 0;
+    int height = 0;
+};
+
 std::vector<ChartEntry> ScanCharts(const std::string& rootPath) {
     std::vector<ChartEntry> entries;
     std::error_code error;
@@ -111,6 +116,16 @@ int main(int argc, char* argv[]) {
     }
 
     RenderConfig renderConfig;
+    std::vector<ResolutionOption> resolutions = {
+        {900, 600},
+        {1280, 720},
+        {1600, 900},
+        {1920, 1080}
+    };
+    int resolutionIndex = 0;
+    renderConfig.width = resolutions[resolutionIndex].width;
+    renderConfig.height = resolutions[resolutionIndex].height;
+
     SDL_Window* window = SDL_CreateWindow(
         "SimpleMania", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         renderConfig.width, renderConfig.height, SDL_WINDOW_SHOWN);
@@ -222,6 +237,14 @@ int main(int argc, char* argv[]) {
         state = AppState::Menu;
     };
 
+    auto applyResolution = [&]() {
+        renderConfig.width = resolutions[resolutionIndex].width;
+        renderConfig.height = resolutions[resolutionIndex].height;
+        SDL_SetWindowSize(window, renderConfig.width, renderConfig.height);
+        SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+        playButton = GetPlayButtonRect(renderConfig);
+    };
+
     if (!osuPath.empty()) {
         if (loadChart(osuPath)) {
             state = AppState::Ready;
@@ -261,6 +284,9 @@ int main(int argc, char* argv[]) {
                     } else {
                         returnToMenu();
                     }
+                } else if (code == SDL_SCANCODE_F5) {
+                    resolutionIndex = (resolutionIndex + 1) % static_cast<int>(resolutions.size());
+                    applyResolution();
                 } else if (state == AppState::Menu) {
                     if (chartEntries.empty()) {
                         continue;
