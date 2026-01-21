@@ -252,7 +252,7 @@ int main(int argc, char* argv[]) {
             state = AppState::Ready;
         }
     }
-    const int targetFps = 120;
+    const int targetFps = 165;
     const int targetFrameMs = 1000 / targetFps;
     bool running = true;
     while (running) {
@@ -322,10 +322,10 @@ int main(int argc, char* argv[]) {
                         SDL_PauseAudioDevice(audioDevice, 0);
                     }
 #endif
-                } else if (code == SDL_SCANCODE_UP) {
-                    scrollSpeed = std::min(2.5f, scrollSpeed + 0.05f);
-                } else if (code == SDL_SCANCODE_DOWN) {
-                    scrollSpeed = std::max(0.1f, scrollSpeed - 0.05f);
+                } else if (state != AppState::Menu && code == SDL_SCANCODE_UP) {
+                    scrollSpeed = std::min(3.0f, scrollSpeed + 0.1f);
+                } else if (state != AppState::Menu && code == SDL_SCANCODE_DOWN) {
+                    scrollSpeed = std::max(0.1f, scrollSpeed - 0.1f);
                 } else if (state == AppState::Playing) {
                     for (int lane = 0; lane < static_cast<int>(keyMap.size()); ++lane) {
                         if (keyMap[lane] == code) {

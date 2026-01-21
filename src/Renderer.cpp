@@ -176,10 +176,13 @@ void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scro
     double acc = game.GetAccuracy();
     char scoreText[64];
     char accText[64];
+    char speedText[64];
     std::snprintf(scoreText, sizeof(scoreText), "SCORE %d", totalScore);
     std::snprintf(accText, sizeof(accText), "ACC %05.2f%%", acc);
+    std::snprintf(speedText, sizeof(speedText), "SPEED %.2f", scrollSpeed);
 
     DrawText(renderer, 16, 16, 2, textColor, scoreText);
+    DrawText(renderer, 16, 40, 2, textColor, speedText);
     int accWidth = static_cast<int>(std::string(accText).size()) * 12;
     DrawText(renderer, config.width - accWidth - 16, 16, 2, textColor, accText);
 
