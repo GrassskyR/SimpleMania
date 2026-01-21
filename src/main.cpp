@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -129,6 +130,8 @@ std::vector<ChartEntry> ScanCharts(const std::string& rootPath) {
 int main(int argc, char* argv[]) {
     // 主入口：初始化SDL、加载菜单与游戏循环
     std::string osuPath = argc > 1 ? argv[1] : "";
+    const char* audioDebugEnv = std::getenv("SM_AUDIO_DEBUG");
+    bool audioDebug = audioDebugEnv && std::string(audioDebugEnv) == "1";
 
     SDL_SetHint(SDL_HINT_TIMER_RESOLUTION, "1");
     SDL_SetHint(SDL_HINT_AUDIO_RESAMPLING_MODE, "linear");
@@ -145,8 +148,11 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     }
-    std::printf("SDL audio driver: %s\n", SDL_GetCurrentAudioDriver());
-    LogAudioDevices();
+    if (audioDebug) {
+        std::printf("SDL audio driver: %s\n", SDL_GetCurrentAudioDriver());
+        std::printf("Performance frequency: %lld\n", static_cast<long long>(SDL_GetPerformanceFrequency()));
+        LogAudioDevices();
+    }
 
     RenderConfig renderConfig;
     std::vector<ResolutionOption> resolutions = {
@@ -196,11 +202,15 @@ int main(int argc, char* argv[]) {
         if (probeObtained.freq > 0) {
             mixFrequency = probeObtained.freq;
         }
-        LogAudioSpec("Probe obtained", probeObtained);
+        if (audioDebug) {
+            LogAudioSpec("Probe obtained", probeObtained);
+        }
         SDL_CloseAudioDevice(probeDevice);
     }
-    std::printf("SDL_mixer request: freq=%d format=0x%04x channels=%d samples=%d\n",
-                mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096);
+    if (audioDebug) {
+        std::printf("SDL_mixer request: freq=%d format=0x%04x channels=%d samples=%d\n",
+                    mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096);
+    }
     if (Mix_OpenAudioDevice(mixFrequency, MIX_DEFAULT_FORMAT, 2, 4096, nullptr,
                             SDL_AUDIO_ALLOW_ANY_CHANGE) != 0) {
             std::printf("Mix_OpenAudio failed: %s\n", Mix_GetError());
@@ -209,9 +219,11 @@ int main(int argc, char* argv[]) {
         int actualChannels = 0;
         Uint16 actualFormat = 0;
         if (Mix_QuerySpec(&actualFreq, &actualFormat, &actualChannels) != 0) {
-            std::printf("SDL_mixer actual: freq=%d format=0x%04x channels=%d\n",
-                        actualFreq, actualFormat, actualChannels);
-        } else {
+            if (audioDebug) {
+                std::printf("SDL_mixer actual: freq=%d format=0x%04x channels=%d\n",
+                            actualFreq, actualFormat, actualChannels);
+            }
+        } else if (audioDebug) {
             std::printf("Mix_QuerySpec failed: %s\n", Mix_GetError());
         }
     }
@@ -247,6 +259,7 @@ int main(int argc, char* argv[]) {
     AppState state = AppState::Menu;
     int pauseMenuIndex = 0;
     const int countdownDurationMs = 3000;
+    Uint32 lastAudioLogTicks = SDL_GetTicks();
 
     // 释放当前音频资源
     auto unloadAudio = [&]() {
@@ -334,6 +347,9 @@ int main(int argc, char* argv[]) {
     auto startAudio = [&](bool restart) {
 #ifdef USE_SDL_MIXER
         if (music) {
+            if (audioDebug) {
+                std::printf("startAudio restart=%d\n", restart ? 1 : 0);
+            }
             if (restart) {
                 Mix_HaltMusic();
                 Mix_RewindMusic();
@@ -358,6 +374,9 @@ int main(int argc, char* argv[]) {
     auto pauseAudio = [&]() {
 #ifdef USE_SDL_MIXER
         if (music) {
+            if (audioDebug) {
+                std::printf("pauseAudio\n");
+            }
             Mix_PauseMusic();
         }
 #else
@@ -501,6 +520,18 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
+
+#ifdef USE_SDL_MIXER
+        if (audioDebug && state == AppState::Playing && music && Mix_PlayingMusic()) {
+            Uint32 nowTicks = SDL_GetTicks();
+            if (nowTicks - lastAudioLogTicks >= 1000) {
+                double pos = Mix_GetMusicPosition(music);
+                std::printf("audio tick=%u musicPos=%.3f paused=%d\n",
+                            nowTicks, pos, Mix_PausedMusic() ? 1 : 0);
+                lastAudioLogTicks = nowTicks;
+            }
+        }
+#endif
 
         int nowMs = 0;
         if (state == AppState::Playing) {
