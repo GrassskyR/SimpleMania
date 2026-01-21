@@ -26,3 +26,9 @@ void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scro
 // 渲染谱面选择菜单
 void RenderMenu(SDL_Renderer* renderer, const RenderConfig& config,
                 const std::vector<std::string>& items, int selectedIndex);
+
+// 渲染暂停菜单
+void RenderPauseMenu(SDL_Renderer* renderer, const RenderConfig& config, int selectedIndex);
+
+// 渲染倒计时数字
+void RenderCountdown(SDL_Renderer* renderer, const RenderConfig& config, int number);

@@ -258,3 +258,36 @@ void RenderMenu(SDL_Renderer* renderer, const RenderConfig& config,
 
     SDL_RenderPresent(renderer);
 }
+
+void RenderPauseMenu(SDL_Renderer* renderer, const RenderConfig& config, int selectedIndex) {
+    // 暂停菜单渲染
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 192);
+    SDL_Rect overlay{0, 0, config.windowWidth, config.windowHeight};
+    SDL_RenderFillRect(renderer, &overlay);
+
+    SDL_Color titleColor{240, 240, 240, 255};
+    int centerX = config.windowWidth / 2;
+    DrawText(renderer, centerX - 54, config.windowHeight / 2 - 70, 3, titleColor, "PAUSED");
+
+    SDL_Color normal{220, 220, 220, 255};
+    SDL_Color active{245, 200, 80, 255};
+    SDL_Color resumeColor = selectedIndex == 0 ? active : normal;
+    SDL_Color menuColor = selectedIndex == 1 ? active : normal;
+    DrawText(renderer, centerX - 60, config.windowHeight / 2 - 10, 2, resumeColor, "RESUME");
+    DrawText(renderer, centerX - 90, config.windowHeight / 2 + 20, 2, menuColor, "BACK TO MENU");
+
+    SDL_RenderPresent(renderer);
+}
+
+void RenderCountdown(SDL_Renderer* renderer, const RenderConfig& config, int number) {
+    // 倒计时数字
+    SDL_Color color{255, 255, 255, 255};
+    int scale = 8;
+    std::string text = std::to_string(number);
+    int textWidth = static_cast<int>(text.size()) * 6 * scale;
+    int x = config.windowWidth / 2 - textWidth / 2;
+    int y = config.windowHeight / 2 - (7 * scale) / 2;
+    DrawText(renderer, x, y, scale, color, text);
+    SDL_RenderPresent(renderer);
+}

@@ -165,7 +165,9 @@ int main(int argc, char* argv[]) {
     enum class AppState {
         Menu,
         Ready,
-        Playing
+        Countdown,
+        Playing,
+        Paused
     };
 
     // 扫描assets子目录下的osu谱面
@@ -175,10 +177,16 @@ int main(int argc, char* argv[]) {
     Game game;
     std::vector<SDL_Scancode> keyMap;
     float scrollSpeed = 1.0f;
-    Uint32 startTime = 0;
-    bool started = false;
+    Uint32 startTicks = 0;
+    Uint32 pauseStartTicks = 0;
+    Uint32 countdownStartTicks = 0;
+    int timeOffsetMs = 0;
+    int pausedGameTimeMs = 0;
+    bool countdownFromPause = false;
     SDL_Rect playButton = GetPlayButtonRect(renderConfig);
     AppState state = AppState::Menu;
+    int pauseMenuIndex = 0;
+    const int countdownDurationMs = 3000;
 
     // 释放当前音频资源
     auto unloadAudio = [&]() {
@@ -242,9 +250,57 @@ int main(int argc, char* argv[]) {
     // 返回菜单并重置状态
     auto returnToMenu = [&]() {
         unloadAudio();
-        started = false;
-        startTime = 0;
+        startTicks = 0;
+        pauseStartTicks = 0;
+        countdownStartTicks = 0;
+        timeOffsetMs = 0;
+        pausedGameTimeMs = 0;
+        countdownFromPause = false;
+        pauseMenuIndex = 0;
         state = AppState::Menu;
+    };
+
+    auto startCountdown = [&](bool fromPause) {
+        countdownFromPause = fromPause;
+        countdownStartTicks = SDL_GetTicks();
+        if (!fromPause) {
+            startTicks = countdownStartTicks;
+            timeOffsetMs = 0;
+            pausedGameTimeMs = 0;
+        }
+        state = AppState::Countdown;
+    };
+
+    auto startAudio = [&](bool restart) {
+#ifdef USE_SDL_MIXER
+        if (music) {
+            if (restart) {
+                Mix_PlayMusic(music, 0);
+            } else {
+                Mix_ResumeMusic();
+            }
+        }
+#else
+        if (audioDevice != 0 && wavBuffer) {
+            if (restart) {
+                SDL_ClearQueuedAudio(audioDevice);
+                SDL_QueueAudio(audioDevice, wavBuffer, wavLength);
+            }
+            SDL_PauseAudioDevice(audioDevice, 0);
+        }
+#endif
+    };
+
+    auto pauseAudio = [&]() {
+#ifdef USE_SDL_MIXER
+        if (music) {
+            Mix_PauseMusic();
+        }
+#else
+        if (audioDevice != 0) {
+            SDL_PauseAudioDevice(audioDevice, 1);
+        }
+#endif
     };
 
     // 切换窗口分辨率（宽度固定900，增加高度）
@@ -277,23 +333,10 @@ int main(int argc, char* argv[]) {
             if (event.type == SDL_QUIT) {
                 running = false;
             } else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
-                if (state == AppState::Ready && !started) {
+                if (state == AppState::Ready) {
                     SDL_Point point{event.button.x, event.button.y};
                     if (SDL_PointInRect(&point, &playButton)) {
-                        started = true;
-                        startTime = SDL_GetTicks();
-                        state = AppState::Playing;
-#ifdef USE_SDL_MIXER
-                        if (music) {
-                            Mix_PlayMusic(music, 0);
-                        }
-#else
-                        if (audioDevice != 0 && wavBuffer) {
-                            SDL_ClearQueuedAudio(audioDevice);
-                            SDL_QueueAudio(audioDevice, wavBuffer, wavLength);
-                            SDL_PauseAudioDevice(audioDevice, 0);
-                        }
-#endif
+                        startCountdown(false);
                     }
                 }
             } else if (event.type == SDL_KEYDOWN) {
@@ -301,6 +344,12 @@ int main(int argc, char* argv[]) {
                 if (code == SDL_SCANCODE_ESCAPE) {
                     if (state == AppState::Menu) {
                         running = false;
+                    } else if (state == AppState::Playing) {
+                        pauseStartTicks = SDL_GetTicks();
+                        pausedGameTimeMs = static_cast<int>(pauseStartTicks - startTicks - timeOffsetMs);
+                        pauseMenuIndex = 0;
+                        pauseAudio();
+                        state = AppState::Paused;
                     } else {
                         returnToMenu();
                     }
@@ -334,7 +383,7 @@ int main(int argc, char* argv[]) {
                        (keys[SDL_SCANCODE_SPACE] && !prevKeys[SDL_SCANCODE_SPACE])) {
                 if (loadChart(chartEntries[selectedIndex].path)) {
                     state = AppState::Ready;
-                    started = false;
+                    pauseMenuIndex = 0;
                 }
             }
         }
@@ -342,20 +391,36 @@ int main(int argc, char* argv[]) {
         if (state == AppState::Ready) {
             if ((keys[SDL_SCANCODE_RETURN] && !prevKeys[SDL_SCANCODE_RETURN]) ||
                 (keys[SDL_SCANCODE_SPACE] && !prevKeys[SDL_SCANCODE_SPACE])) {
-                started = true;
-                startTime = SDL_GetTicks();
+                startCountdown(false);
+            }
+        }
+
+        if (state == AppState::Paused) {
+            if (keys[SDL_SCANCODE_UP] && !prevKeys[SDL_SCANCODE_UP]) {
+                pauseMenuIndex = std::max(0, pauseMenuIndex - 1);
+            } else if (keys[SDL_SCANCODE_DOWN] && !prevKeys[SDL_SCANCODE_DOWN]) {
+                pauseMenuIndex = std::min(1, pauseMenuIndex + 1);
+            } else if ((keys[SDL_SCANCODE_RETURN] && !prevKeys[SDL_SCANCODE_RETURN]) ||
+                       (keys[SDL_SCANCODE_SPACE] && !prevKeys[SDL_SCANCODE_SPACE])) {
+                if (pauseMenuIndex == 0) {
+                    startCountdown(true);
+                } else {
+                    returnToMenu();
+                }
+            }
+        }
+
+        if (state == AppState::Countdown) {
+            Uint32 elapsed = SDL_GetTicks() - countdownStartTicks;
+            if (elapsed >= static_cast<Uint32>(countdownDurationMs)) {
+                if (countdownFromPause) {
+                    timeOffsetMs += static_cast<int>(SDL_GetTicks() - pauseStartTicks);
+                } else {
+                    timeOffsetMs += countdownDurationMs;
+                }
+                startAudio(!countdownFromPause);
+                countdownFromPause = false;
                 state = AppState::Playing;
-#ifdef USE_SDL_MIXER
-                if (music) {
-                    Mix_PlayMusic(music, 0);
-                }
-#else
-                if (audioDevice != 0 && wavBuffer) {
-                    SDL_ClearQueuedAudio(audioDevice);
-                    SDL_QueueAudio(audioDevice, wavBuffer, wavLength);
-                    SDL_PauseAudioDevice(audioDevice, 0);
-                }
-#endif
             }
         }
 
@@ -363,7 +428,7 @@ int main(int argc, char* argv[]) {
             for (int lane = 0; lane < static_cast<int>(keyMap.size()); ++lane) {
                 SDL_Scancode scancode = keyMap[lane];
                 if (scancode != SDL_SCANCODE_UNKNOWN && keys[scancode] && !prevKeys[scancode]) {
-                    int nowMs = static_cast<int>(SDL_GetTicks() - startTime);
+                    int nowMs = static_cast<int>(SDL_GetTicks() - startTicks - timeOffsetMs);
                     game.HandleInput(lane, nowMs);
                 }
             }
@@ -371,11 +436,21 @@ int main(int argc, char* argv[]) {
 
         int nowMs = 0;
         if (state == AppState::Playing) {
-            nowMs = static_cast<int>(SDL_GetTicks() - startTime);
+            nowMs = static_cast<int>(SDL_GetTicks() - startTicks - timeOffsetMs);
             game.Update(nowMs);
             RenderFrame(renderer, game, nowMs, scrollSpeed, renderConfig, false);
         } else if (state == AppState::Ready) {
-            RenderFrame(renderer, game, nowMs, scrollSpeed, renderConfig, true);
+            RenderFrame(renderer, game, 0, scrollSpeed, renderConfig, true);
+        } else if (state == AppState::Countdown) {
+            int renderTime = countdownFromPause ? pausedGameTimeMs : 0;
+            RenderFrame(renderer, game, renderTime, scrollSpeed, renderConfig, false);
+            Uint32 elapsed = SDL_GetTicks() - countdownStartTicks;
+            int remaining = countdownDurationMs - static_cast<int>(elapsed);
+            int number = std::max(1, (remaining + 999) / 1000);
+            RenderCountdown(renderer, renderConfig, number);
+        } else if (state == AppState::Paused) {
+            RenderFrame(renderer, game, pausedGameTimeMs, scrollSpeed, renderConfig, false);
+            RenderPauseMenu(renderer, renderConfig, pauseMenuIndex);
         } else {
             std::vector<std::string> labels;
             labels.reserve(chartEntries.size());
@@ -391,6 +466,8 @@ int main(int argc, char* argv[]) {
             std::snprintf(title, sizeof(title), "SimpleMania | Select Beatmap");
         } else if (state == AppState::Ready) {
             std::snprintf(title, sizeof(title), "SimpleMania | Click Play or Press Space");
+        } else if (state == AppState::Paused) {
+            std::snprintf(title, sizeof(title), "SimpleMania | Paused");
         } else {
             std::snprintf(title, sizeof(title), "SimpleMania | Score %d | Combo %d | Speed %.2f",
                           game.GetTotalScore(), stats.combo, scrollSpeed);
