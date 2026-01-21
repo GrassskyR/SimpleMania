@@ -125,6 +125,7 @@ int main(int argc, char* argv[]) {
     int resolutionIndex = 0;
     renderConfig.width = resolutions[resolutionIndex].width;
     renderConfig.height = resolutions[resolutionIndex].height;
+    renderConfig.judgeLineY = renderConfig.height - 80;
 
     SDL_Window* window = SDL_CreateWindow(
         "SimpleMania", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -240,6 +241,7 @@ int main(int argc, char* argv[]) {
     auto applyResolution = [&]() {
         renderConfig.width = resolutions[resolutionIndex].width;
         renderConfig.height = resolutions[resolutionIndex].height;
+        renderConfig.judgeLineY = renderConfig.height - 80;
         SDL_SetWindowSize(window, renderConfig.width, renderConfig.height);
         SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
         playButton = GetPlayButtonRect(renderConfig);
