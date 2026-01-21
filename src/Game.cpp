@@ -3,6 +3,7 @@
 #include <algorithm>
 
 void Game::LoadChart(const Chart& chart) {
+    // 复制谱面数据并建立轨道索引
     notes_ = chart.notes;
     keyCount_ = std::max(1, chart.keyCount);
     stats_ = GameStats();
@@ -28,6 +29,7 @@ void Game::LoadChart(const Chart& chart) {
 }
 
 void Game::Update(int nowMs) {
+    // 超过Good窗口未击中则判Miss
     for (int lane = 0; lane < keyCount_; ++lane) {
         auto& cursor = laneCursor_[lane];
         auto& indices = laneIndices_[lane];
@@ -49,6 +51,7 @@ void Game::Update(int nowMs) {
 }
 
 JudgeGrade Game::HandleInput(int lane, int nowMs) {
+    // 在对应轨道寻找最近未判定音符
     if (lane < 0 || lane >= keyCount_) {
         return JudgeGrade::None;
     }
@@ -89,6 +92,7 @@ JudgeGrade Game::HandleInput(int lane, int nowMs) {
 }
 
 void Game::ApplyJudge(Note& note, JudgeGrade grade, int nowMs) {
+    // 记录判定、连击与计分
     if (note.judged) {
         return;
     }
@@ -120,6 +124,7 @@ void Game::ApplyJudge(Note& note, JudgeGrade grade, int nowMs) {
 }
 
 int Game::GetJudgementScore() const {
+    // 判定分：Perfect=100, Good=65，满分900000
     if (stats_.totalNotes <= 0) {
         return 0;
     }
@@ -129,6 +134,7 @@ int Game::GetJudgementScore() const {
 }
 
 int Game::GetComboScore() const {
+    // 连击分：maxCombo / totalNotes * 100000
     if (stats_.totalNotes <= 0) {
         return 0;
     }
@@ -142,6 +148,7 @@ int Game::GetTotalScore() const {
 }
 
 double Game::GetAccuracy() const {
+    // Accuracy只按已判定音符计算
     if (stats_.judgedNotes <= 0) {
         return 100.0;
     }

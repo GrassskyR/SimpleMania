@@ -4,6 +4,7 @@
 #include <string>
 
 int main(int argc, char* argv[]) {
+    // 命令行谱面生成器
     if (argc < 6) {
         std::cout << "Usage: chartgen <bpm> <duration_ms> <key_count> <density> <output.osu>\n";
         std::cout << "Example: chartgen 120 30000 4 2 demo.osu\n";

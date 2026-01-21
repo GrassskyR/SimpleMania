@@ -109,6 +109,7 @@ std::vector<ChartEntry> ScanCharts(const std::string& rootPath) {
 }
 
 int main(int argc, char* argv[]) {
+    // 主入口：初始化SDL、加载菜单与游戏循环
     std::string osuPath = argc > 1 ? argv[1] : "";
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) {
@@ -167,6 +168,7 @@ int main(int argc, char* argv[]) {
         Playing
     };
 
+    // 扫描assets子目录下的osu谱面
     std::vector<ChartEntry> chartEntries = ScanCharts("assets");
     int selectedIndex = 0;
     Chart chart;
@@ -178,6 +180,7 @@ int main(int argc, char* argv[]) {
     SDL_Rect playButton = GetPlayButtonRect(renderConfig);
     AppState state = AppState::Menu;
 
+    // 释放当前音频资源
     auto unloadAudio = [&]() {
 #ifdef USE_SDL_MIXER
         if (music) {
@@ -198,6 +201,7 @@ int main(int argc, char* argv[]) {
 #endif
     };
 
+    // 读取谱面与音频资源
     auto loadChart = [&](const std::string& path) -> bool {
         Chart nextChart;
         std::string error;
@@ -235,6 +239,7 @@ int main(int argc, char* argv[]) {
         return true;
     };
 
+    // 返回菜单并重置状态
     auto returnToMenu = [&]() {
         unloadAudio();
         started = false;
@@ -242,6 +247,7 @@ int main(int argc, char* argv[]) {
         state = AppState::Menu;
     };
 
+    // 切换窗口分辨率（宽度固定900，增加高度）
     auto applyResolution = [&]() {
         renderConfig.windowWidth = resolutions[resolutionIndex].width;
         renderConfig.windowHeight = resolutions[resolutionIndex].height;
@@ -263,6 +269,7 @@ int main(int argc, char* argv[]) {
     const int targetFrameMs = 1000 / targetFps;
     std::vector<Uint8> prevKeys(SDL_NUM_SCANCODES, 0);
     bool running = true;
+    // 主循环
     while (running) {
         Uint32 frameStart = SDL_GetTicks();
         SDL_Event event;

@@ -4,6 +4,7 @@
 #include <vector>
 
 struct TimingPoint {
+    // 时间点与节拍信息（毫秒与拍长）
     double timeMs = 0.0;
     double beatLengthMs = 0.0;
     int meter = 4;
@@ -11,6 +12,7 @@ struct TimingPoint {
 };
 
 struct Note {
+    // 单个下落音符（lane为轨道编号）
     int lane = 0;
     int timeMs = 0;
     int endTimeMs = 0;
@@ -19,6 +21,7 @@ struct Note {
 };
 
 struct Chart {
+    // 谱面基础信息与所有音符
     std::string title;
     std::string artist;
     std::string version;

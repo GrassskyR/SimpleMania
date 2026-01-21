@@ -7,6 +7,7 @@
 #include <vector>
 
 namespace {
+// 去掉行首尾空白
 std::string Trim(const std::string& text) {
     size_t start = 0;
     while (start < text.size() && std::isspace(static_cast<unsigned char>(text[start]))) {
@@ -19,6 +20,7 @@ std::string Trim(const std::string& text) {
     return text.substr(start, end - start);
 }
 
+// 简单分割
 std::vector<std::string> Split(const std::string& text, char delim) {
     std::vector<std::string> parts;
     std::string item;
@@ -29,6 +31,7 @@ std::vector<std::string> Split(const std::string& text, char delim) {
     return parts;
 }
 
+// 解析整数
 int ParseInt(const std::string& value, int fallback = 0) {
     try {
         return std::stoi(value);
@@ -37,6 +40,7 @@ int ParseInt(const std::string& value, int fallback = 0) {
     }
 }
 
+// 解析浮点数
 double ParseDouble(const std::string& value, double fallback = 0.0) {
     try {
         return std::stod(value);
@@ -47,6 +51,7 @@ double ParseDouble(const std::string& value, double fallback = 0.0) {
 }
 
 bool ParseOsuFile(const std::string& path, Chart& outChart, std::string& error) {
+    // 读取osu文本并解析必要段落
     std::ifstream file(path);
     if (!file.is_open()) {
         error = "Failed to open osu file: " + path;

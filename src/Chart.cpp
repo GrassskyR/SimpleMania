@@ -1,3 +1,3 @@
 #include "Chart.h"
 
-// Data-only types for now.
+// 目前仅包含数据结构

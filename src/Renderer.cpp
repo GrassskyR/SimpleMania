@@ -6,6 +6,7 @@
 
 namespace {
 SDL_Color LaneColor(int lane, int keyCount) {
+    // 轨道底色（目前全黑）
     (void)lane;
     (void)keyCount;
     return SDL_Color{0, 0, 0, 255};
@@ -61,6 +62,7 @@ const Glyph kFont[] = {
 };
 
 const Glyph* FindGlyph(char c) {
+    // 查找字形
     if (c >= 'a' && c <= 'z') {
         c = static_cast<char>(c - 'a' + 'A');
     }
@@ -73,6 +75,7 @@ const Glyph* FindGlyph(char c) {
 }
 
 void DrawText(SDL_Renderer* renderer, int x, int y, int scale, SDL_Color color, const std::string& text) {
+    // 使用简易5x7像素字体绘制文本
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
     int cursorX = x;
     for (char c : text) {
@@ -94,6 +97,7 @@ void DrawText(SDL_Renderer* renderer, int x, int y, int scale, SDL_Color color, 
 }
 
 std::string JudgeToString(JudgeGrade grade) {
+    // 判定字符串
     switch (grade) {
         case JudgeGrade::Perfect:
             return "PERFECT";
@@ -107,6 +111,7 @@ std::string JudgeToString(JudgeGrade grade) {
 }
 
 SDL_Color JudgeColor(JudgeGrade grade) {
+    // 判定颜色
     switch (grade) {
         case JudgeGrade::Perfect:
             return SDL_Color{245, 200, 70, 255};
@@ -122,6 +127,7 @@ SDL_Color JudgeColor(JudgeGrade grade) {
 
 void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scrollSpeed,
                  const RenderConfig& config, bool showStartOverlay) {
+    // 游戏画面渲染
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
 
@@ -129,6 +135,7 @@ void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scro
     float laneWidth = static_cast<float>(config.playWidth) / static_cast<float>(keyCount);
 
     for (int lane = 0; lane < keyCount; ++lane) {
+        // 绘制轨道
         SDL_Color color = LaneColor(lane, keyCount);
         SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 255);
         SDL_Rect laneRect{
@@ -146,6 +153,7 @@ void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scro
 
     const auto& notes = game.GetNotes();
     for (const auto& note : notes) {
+        // 绘制未判定音符
         if (note.judged) {
             continue;
         }
@@ -165,6 +173,7 @@ void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scro
     }
 
     const GameStats& stats = game.GetStats();
+    // HUD: 分数、速度、ACC、连击与判定
 
     SDL_Color textColor{240, 240, 240, 255};
     int totalScore = game.GetTotalScore();
@@ -196,6 +205,7 @@ void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scro
     }
 
     if (showStartOverlay) {
+        // 未开始时的播放遮罩与按钮
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 10, 10, 14, 180);
         SDL_Rect overlay{0, 0, config.windowWidth, config.windowHeight};
@@ -221,6 +231,7 @@ void RenderFrame(SDL_Renderer* renderer, const Game& game, int nowMs, float scro
 
 void RenderMenu(SDL_Renderer* renderer, const RenderConfig& config,
                 const std::vector<std::string>& items, int selectedIndex) {
+    // 菜单渲染
     SDL_SetRenderDrawColor(renderer, 14, 14, 20, 255);
     SDL_RenderClear(renderer);
 
