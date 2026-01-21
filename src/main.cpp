@@ -343,7 +343,9 @@ int main(int argc, char* argv[]) {
     bool running = true;
     // 主循环
     while (running) {
+        // 帧起始时间（高精度计时）
         double frameStartMs = GetNowMs();
+        // SDL事件处理（退出/菜单/暂停）
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
@@ -380,9 +382,11 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        // 轮询键盘状态，用于游戏判定与菜单控制
         const Uint8* keys = SDL_GetKeyboardState(nullptr);
         Uint16 mods = SDL_GetModState();
         bool ctrlDown = (mods & KMOD_CTRL) != 0;
+        // 速度调节：Ctrl +/-
         if (state != AppState::Menu && ctrlDown) {
             if ((keys[SDL_SCANCODE_EQUALS] && !prevKeys[SDL_SCANCODE_EQUALS]) ||
                 (keys[SDL_SCANCODE_KP_PLUS] && !prevKeys[SDL_SCANCODE_KP_PLUS])) {
@@ -393,6 +397,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        // 主菜单选择
         if (state == AppState::Menu && !chartEntries.empty()) {
             if (keys[SDL_SCANCODE_UP] && !prevKeys[SDL_SCANCODE_UP]) {
                 selectedIndex = std::max(0, selectedIndex - 1);
@@ -408,6 +413,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        // 进入倒计时
         if (state == AppState::Ready) {
             if ((keys[SDL_SCANCODE_RETURN] && !prevKeys[SDL_SCANCODE_RETURN]) ||
                 (keys[SDL_SCANCODE_SPACE] && !prevKeys[SDL_SCANCODE_SPACE])) {
@@ -415,6 +421,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        // 暂停菜单选择
         if (state == AppState::Paused) {
             if (keys[SDL_SCANCODE_UP] && !prevKeys[SDL_SCANCODE_UP]) {
                 pauseMenuIndex = std::max(0, pauseMenuIndex - 1);
@@ -430,6 +437,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        // 倒计时结束后开始播放
         if (state == AppState::Countdown) {
             double elapsed = GetNowMs() - countdownStartMs;
             if (elapsed >= countdownDurationMs) {
@@ -444,6 +452,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        // 游玩判定输入
         if (state == AppState::Playing) {
             for (int lane = 0; lane < static_cast<int>(keyMap.size()); ++lane) {
                 SDL_Scancode scancode = keyMap[lane];
@@ -455,6 +464,7 @@ int main(int argc, char* argv[]) {
         }
 
 
+        // 游戏更新与渲染
         int nowMs = 0;
         if (state == AppState::Playing) {
             nowMs = static_cast<int>(GetNowMs() - startTimeMs - timeOffsetMs);
@@ -496,11 +506,13 @@ int main(int argc, char* argv[]) {
         }
         SDL_SetWindowTitle(window, title);
 
+        // 帧率限制
         double frameElapsed = GetNowMs() - frameStartMs;
         if (frameElapsed < targetFrameMs) {
             SDL_Delay(static_cast<Uint32>(targetFrameMs - frameElapsed));
         }
 
+        // 记录上一帧键盘状态
         std::copy(keys, keys + SDL_NUM_SCANCODES, prevKeys.begin());
     }
 
